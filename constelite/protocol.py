@@ -1,4 +1,14 @@
-from pydantic import validate_arguments
+from typing import Dict, Callable
+from pydantic import validate_arguments, BaseModel
+
+from constelite import Model
+
+from loguru import logger
+
+
+class ProtocolAPIModel(BaseModel):
+    name: str
+    fn: Callable[..., Dict[str, Model]]
 
 
 class protocol:
@@ -6,6 +16,7 @@ class protocol:
     """
     __protocols = {}
 
+    @property
     @classmethod
     def protocols(cls):
         return cls.__protocols
@@ -14,6 +25,16 @@ class protocol:
         self.name = name
 
     def __call__(self, fn):
-        vfn = validate_arguments(fn)
-        self.__protocols[self.name] = vfn
-        return vfn
+        fn_name = fn.__name__
+
+        if fn_name in self.__protocols:
+            logger.warn(f"Duplicate of {fn_name} found. Skipping...")
+            return fn
+        else:
+            vfn = validate_arguments(fn)
+            self.__protocols[fn_name] = ProtocolAPIModel(
+                name=self.name,
+                fn=vfn
+            )
+
+            return vfn

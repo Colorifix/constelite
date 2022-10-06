@@ -1,7 +1,18 @@
-from typing import List, Generic, Optional, TypeVar
-from pydantic import validate_arguments
-from pydantic.generics import GenericModel
-from constelite import get_method_name, Model
+from typing import Type, Callable, Optional
+from pydantic import validate_arguments, BaseModel
+
+from functools import wraps
+
+from constelite import Model, Config, get_config
+
+from loguru import logger
+
+
+class GetterAPIModel(BaseModel):
+    name: Optional[str]
+    ret_model: Type[Model]
+    config: Type[Config]
+    fn: Callable
 
 
 class getter:
@@ -13,33 +24,45 @@ class getter:
     def getters(cls):
         return cls.__getters
 
-    def __init__(self, models: List[Model]):
-        self.models = models
+    def __init__(self, name: str = None):
+        self.name = name
 
-    def __call__(self, cls):
-        for model in self.models:
-            if model not in self.__getters:
-                self.__getters[model] = []
-            self.__getters[model].append(cls)
+    @logger.catch(reraise=True)
+    def __call__(self, fn):
+        fn_name = fn.__name__
 
+        if fn_name in self.__getters:
+            logger.warn(f"Duplicate of {fn_name} found. Skipping...")
+            return fn
+        else:
+            vfn = validate_arguments(fn)
 
-ConfigT = TypeVar('ConfigT')
+            ret_model = vfn.__annotations__.get('return', None)
+            if ret_model is None:
+                raise ValueError(
+                    f'Getter function {fn_name} has no return type specified.'
+                )
 
+            config_model = vfn.__annotations__.get('config', None)
+            if config_model is None:
+                raise ValueError(
+                    f"Getter function {fn_name} has no 'config' argument or "
+                    "'config' type is not specified"
+                )
 
-class Getter(GenericModel, Generic[ConfigT]):
-    """Getter base class
-    """
-    config: Optional[ConfigT]
-
-    def get(self, cls, **kwargs):
-        method_name = get_method_name(cls, 'get')
-
-        method = getattr(self, method_name, None)
-
-        if method is None:
-            raise AttributeError(
-                f"Method '{method_name}' is not defined"
-                f" for {cls}"
+            self.__getters[fn_name] = GetterAPIModel(
+                name=self.name,
+                ret_model=ret_model,
+                fn=vfn,
+                config=config_model
             )
 
-        return validate_arguments(method)(**kwargs)
+            @wraps(vfn)
+            def wrapper(**kwargs):
+                config = kwargs.get('config', None)
+                if config is None:
+                    kwargs['config'] = get_config(config_model)
+
+                return vfn(**kwargs)
+
+            return wrapper
