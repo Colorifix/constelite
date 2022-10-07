@@ -44,11 +44,6 @@ class getter:
                 )
 
             config_model = vfn.__annotations__.get('config', None)
-            if config_model is None:
-                raise ValueError(
-                    f"Getter function {fn_name} has no 'config' argument or "
-                    "'config' type is not specified"
-                )
 
             self.__getters[fn_name] = GetterAPIModel(
                 name=self.name,

@@ -3,9 +3,9 @@ from constelite.config import Config, get_config
 
 from constelite.model import Model
 
-from constelite.getter import getter
-from constelite.setter import setter
-from constelite.protocol import protocol
+from constelite.getter import getter, GetterAPIModel
+from constelite.setter import setter, SetterAPIModel
+from constelite.protocol import protocol, ProtocolAPIModel
 
 
 __all__ = [
@@ -14,6 +14,9 @@ __all__ = [
     'get_config',
     'Model',
     'getter',
+    'GetterAPIModel',
     'setter',
-    'protocol'
+    'SetterAPIModel',
+    'protocol',
+    'ProtocolAPIModel'
 ]
