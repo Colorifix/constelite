@@ -1,28 +1,44 @@
-from typing import Dict, Callable
-from pydantic import validate_arguments, BaseModel
+from typing import List
 
-from constelite import Model
+from inspect import signature, Parameter
+
+from pydantic import validate_arguments, create_model
+
+from constelite import ProtocolAPIModel
 
 from loguru import logger
-
-
-class ProtocolAPIModel(BaseModel):
-    name: str
-    fn: Callable[..., Dict[str, Model]]
 
 
 class protocol:
     """Decorator for protocols
     """
-    __protocols = {}
+    __protocols: List[ProtocolAPIModel] = []
 
-    @property
     @classmethod
-    def protocols(cls):
+    @property
+    def protocols(cls) -> List[ProtocolAPIModel]:
         return cls.__protocols
 
     def __init__(self, name):
         self.name = name
+
+    @staticmethod
+    def _generate_model(fn):
+        fields = {
+            param_name:
+            (
+                param.annotation,
+                ...
+            )
+            if param.default == Parameter.empty
+            else (
+                param.annotation,
+                param.default
+            )
+            for param_name, param in signature(fn)._parameters.items()
+        }
+
+        return create_model(fn.__name__, **fields)
 
     def __call__(self, fn):
         fn_name = fn.__name__
@@ -31,10 +47,23 @@ class protocol:
             logger.warn(f"Duplicate of {fn_name} found. Skipping...")
             return fn
         else:
-            vfn = validate_arguments(fn)
-            self.__protocols[fn_name] = ProtocolAPIModel(
-                name=self.name,
-                fn=vfn
+
+            ret_model = fn.__annotations__.get('return', None)
+            if ret_model is None:
+                raise ValueError(
+                    f'Getter function {fn_name} has no return type specified.'
+                )
+
+            model = self._generate_model(fn)
+
+            self.__protocols.append(
+                ProtocolAPIModel(
+                    name=self.name,
+                    fn=fn,
+                    ret_model=ret_model,
+                    fn_model=model,
+                    path=fn.__name__
+                )
             )
 
-            return vfn
+            return validate_arguments(fn)

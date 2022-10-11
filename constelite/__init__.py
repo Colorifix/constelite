@@ -1,22 +1,33 @@
 from constelite.utils import get_method_name
 from constelite.config import Config, get_config
 
-from constelite.model import Model
+from constelite.model import Model, FlexibleModel
 
-from constelite.getter import getter, GetterAPIModel
-from constelite.setter import setter, SetterAPIModel
-from constelite.protocol import protocol, ProtocolAPIModel
+from constelite.api_models import (
+    APIModel, GetterAPIModel, SetterAPIModel, ProtocolAPIModel
+)
 
+from constelite.getter import getter
+from constelite.setter import setter
+from constelite.protocol import protocol
+
+from constelite.api_base import ConsteliteAPI
 
 __all__ = [
     'get_method_name',
     'Config',
     'get_config',
+    'APIModel',
+    'GetterAPIModel',
+    'SetterAPIModel',
+    'ProtocolAPIModel',
     'Model',
+    'FlexibleModel',
     'getter',
     'GetterAPIModel',
     'setter',
     'SetterAPIModel',
     'protocol',
-    'ProtocolAPIModel'
+    'ProtocolAPIModel',
+    'ConsteliteAPI'
 ]

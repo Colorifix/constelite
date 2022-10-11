@@ -1,29 +1,20 @@
-from typing import Generic, TypeVar, Optional, Type, Callable
+from typing import List, Optional
 
-from functools import wraps
+from pydantic import validate_arguments, create_model
 
-from pydantic import validate_arguments, BaseModel
-from pydantic.generics import GenericModel
-
-from constelite import get_method_name, Model, Config, get_config
+from constelite import get_config, SetterAPIModel
 
 from loguru import logger
-
-
-class SetterAPIModel(BaseModel):
-    name: Optional[str]
-    set_model: Type[Model]
-    config: Type[Config]
-    fn: Callable
 
 
 class setter:
     """Wrapper for setters
     """
-    __setters = {}
+    __setters: List[SetterAPIModel] = []
 
     @classmethod
-    def setters(cls):
+    @property
+    def setters(cls) -> List[SetterAPIModel]:
         return cls.__setters
 
     def __init__(self, name: str = None):
@@ -37,30 +28,40 @@ class setter:
             logger.warn(f"Duplicate of {fn_name} found. Skipping...")
             return fn
         else:
-            vfn = validate_arguments(fn)
+            set_model = fn.__annotations__.get('model', None)
 
-            ret_model = vfn.__annotations__.get('model', None)
-
-            if ret_model is None:
+            if set_model is None:
                 raise ValueError(
                     f"Getter function {fn_name} has no 'model' argument."
                 )
 
-            config_model = vfn.__annotations__.get('config', None)
+            config_model = fn.__annotations__.get('config', None)
 
-            self.__setters[fn_name] = SetterAPIModel(
-                name=self.name,
-                set_model=ret_model,
-                fn=vfn,
-                config=config_model
+            fn_model = create_model(
+                fn.__name__,
+                model=(set_model, ...),
+                config=(Optional[config_model], None)
             )
 
-            @wraps(vfn)
             def wrapper(**kwargs):
                 config = kwargs.get('config', None)
                 if config is None:
-                    kwargs['config'] = get_config(self.config_cls)
+                    kwargs['config'] = get_config(config_model)
 
-                return vfn(**kwargs)
+                return validate_arguments(fn)(**kwargs)
+
+            path = fn.__name__
+            wrapper.__name__ = path
+
+            self.__setters.append(
+                SetterAPIModel(
+                    path=path,
+                    name=self.name,
+                    set_model=set_model,
+                    fn=wrapper,
+                    fn_model=fn_model,
+                    config=config_model
+                )
+            )
 
             return wrapper
