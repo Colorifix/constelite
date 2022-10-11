@@ -63,7 +63,7 @@ class StarliteAPI(ConsteliteAPI):
 
         return post(
             path=f'/{method.fn.__name__}',
-            tags=['tag'],
+            tags=[controller_type],
             description=method.name
         )(method_wrapper)
 
