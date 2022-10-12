@@ -39,7 +39,7 @@ class StarliteAPI(ConsteliteAPI):
             openapi_config=OpenAPIConfig(title=self.name, version=self.version),
             middleware=[]
         )
-        uvicorn.run(self.app, port=self.port)
+        uvicorn.run(self.app, port=self.port, host=self.host)
 
     def generate_endpoint(
             self,

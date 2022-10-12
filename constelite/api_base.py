@@ -10,10 +10,12 @@ class ConsteliteAPI:
             self,
             name,
             version: Optional[str] = None,
+            host: Optional[str] = None,
             port: Optional[int] = None
     ):
         self.name = name
         self.version = version
+        self.host = host
         self.port = port
 
     def get_protocol_methods(self) -> List[ProtocolAPIModel]:
