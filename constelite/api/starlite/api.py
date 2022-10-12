@@ -1,17 +1,50 @@
 import inspect
 
-from typing import Callable, Literal
+from pydantic import BaseModel
+
+from typing import Callable, Literal, Optional
 
 from starlite import Controller, post, Starlite, OpenAPIConfig
 from openapi_schema_pydantic import Tag
 
-from constelite import ConsteliteAPI, APIModel
+from constelite import (
+    ConsteliteAPI,
+    APIModel,
+    get_store,
+    Ref,
+    FlexibleModel,
+    Model
+)
 
 import uvicorn
 
 from loguru import logger
 
 ControllerType = Literal['protocol', 'getter', 'setter']
+
+
+class StoreController(Controller):
+    path = '/store'
+
+    class LoadRequest(BaseModel):
+        ref: Ref
+
+    class StoreRequest(BaseModel):
+        model: Model
+
+    @post(path='/load', tags=['store'], description='Load model from store')
+    def load(self, data: LoadRequest) -> Optional[FlexibleModel]:
+        store = get_store()
+
+        if store.ref_exists(data.ref):
+            return store.load(data.ref)
+        else:
+            return None
+
+    @post(path='/save', tags=['store'], description='Store model')
+    def save(self, data: StoreRequest) -> Ref:
+        store = get_store()
+        return store.store(data)
 
 
 class StarliteAPI(ConsteliteAPI):
@@ -32,7 +65,8 @@ class StarliteAPI(ConsteliteAPI):
             route_handlers=[
                 self.generate_controller('protocol'),
                 self.generate_controller('getter'),
-                self.generate_controller('setter')
+                self.generate_controller('setter'),
+                StoreController
             ],
             exception_handlers={
             },

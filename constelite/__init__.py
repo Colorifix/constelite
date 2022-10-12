@@ -1,6 +1,8 @@
 from constelite.utils import get_method_name
 from constelite.config import Config, get_config
 
+from constelite.store import Store, PickleStore, get_store, Ref
+
 from constelite.model import Model, FlexibleModel
 
 from constelite.api_models import (
@@ -23,6 +25,10 @@ __all__ = [
     'ProtocolAPIModel',
     'Model',
     'FlexibleModel',
+    'Store',
+    'PickleStore',
+    'Ref',
+    'get_store',
     'getter',
     'GetterAPIModel',
     'setter',
