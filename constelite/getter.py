@@ -1,45 +1,95 @@
-from typing import List, Generic, Optional, TypeVar
-from pydantic import validate_arguments
-from pydantic.generics import GenericModel
-from constelite import get_method_name, Model
+from inspect import signature, Parameter
+from typing import List, Optional, Type
+
+from pydantic import create_model, validate_arguments
+
+from constelite import get_config, GetterAPIModel, Config, get_store
+
+from loguru import logger
 
 
 class getter:
     """Wrapper for getters
     """
-    __getters = {}
+    __getters: List[GetterAPIModel] = []
 
     @classmethod
-    def getters(cls):
+    @property
+    def getters(cls) -> List[GetterAPIModel]:
         return cls.__getters
 
-    def __init__(self, models: List[Model]):
-        self.models = models
+    def __init__(self, name: str = None):
+        self.name = name
 
-    def __call__(self, cls):
-        for model in self.models:
-            if model not in self.__getters:
-                self.__getters[model] = []
-            self.__getters[model].append(cls)
+    @staticmethod
+    def _generate_model(fn, config_model: Type[Config]):
+        fields = {
+            param_name:
+            (
+                param.annotation,
+                ...
+            )
+            if param.default == Parameter.empty
+            else (
+                param.annotation,
+                param.default
+            )
+            for param_name, param in signature(fn)._parameters.items()
+        }
 
+        if config_model is not None:
+            fields['config'] = (Optional[config_model], None)
 
-ConfigT = TypeVar('ConfigT')
+        fields['store'] = (Optional[bool], False)
 
+        return create_model(fn.__name__, **fields)
 
-class Getter(GenericModel, Generic[ConfigT]):
-    """Getter base class
-    """
-    config: Optional[ConfigT]
+    @logger.catch(reraise=True)
+    def __call__(self, fn):
+        fn_name = fn.__name__
 
-    def get(self, cls, **kwargs):
-        method_name = get_method_name(cls, 'get')
+        if fn_name in self.__getters:
+            logger.warn(f"Duplicate of {fn_name} found. Skipping...")
+            return fn
+        else:
+            ret_model = fn.__annotations__.get('return', None)
+            if ret_model is None:
+                raise ValueError(
+                    f'Getter function {fn_name} has no return type specified.'
+                )
 
-        method = getattr(self, method_name, None)
+            config_model = fn.__annotations__.get('config', None)
 
-        if method is None:
-            raise AttributeError(
-                f"Method '{method_name}' is not defined"
-                f" for {cls}"
+            fn_model = self._generate_model(fn, config_model)
+
+            def wrapper(**kwargs) -> ret_model:
+                if config_model is not None:
+                    config = kwargs.get('config', None)
+                    if config is None:
+                        kwargs['config'] = get_config(config_model)
+
+                to_store = kwargs.pop('store', None)
+
+                ret = validate_arguments(fn)(**kwargs)
+
+                if to_store is True:
+                    store = get_store()
+                    return store.store(ret)
+                else:
+                    return ret
+
+            path = fn.__name__
+            wrapper.__name__ = path
+
+            self.__getters.append(
+                GetterAPIModel(
+                    path=path,
+                    name=self.name,
+                    ret_model=ret_model,
+                    fn=wrapper,
+                    fn_model=fn_model,
+                    config=config_model
+                )
             )
 
-        return validate_arguments(method)(**kwargs)
+            return wrapper

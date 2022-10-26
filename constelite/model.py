@@ -1,50 +1,21 @@
-from typing import Type
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Extra, root_validator
+from typing import Type, Optional
 
-from loguru import logger
-
-from constelite import Config, get_config
+from constelite import get_store, Ref
 
 
 class Model(BaseModel):
+    ref: Optional[Ref]
 
-    @classmethod
-    def get(
-            cls,
-            config: Config = None,
-            getter_cls: Type["Getter"] = None,
-            **kwargs
-    ):
+    @root_validator(pre=True)
+    def validate_ref(cls, values):
+        if 'ref' in values and values['ref'] is not None:
+            store = get_store()
+            model = store.load(Ref(ref=values['ref']))
+            return model.dict()
+        return values
 
-        if getter_cls is not None:
-            if config is None:
-                config = get_config(getter_cls)
-            getter = getter_cls(config=config)
-            return getter.get(cls, **kwargs)
-        else:
-            from constelite import getter
-            getters = getter.getters()
 
-            for getter_cls in getters[cls]:
-                try:
-                    if config is None:
-                        config = get_config(getter_cls)
-                    getter = getter_cls(config=config)
-                    return getter.get(cls=cls, **kwargs)
-                except ValidationError as e:
-                    logger.debug(f"Failed validation, {e}")
-                    continue
-            raise ValidationError(
-                f"Failed to find a suitable getter for {cls}"
-                " with given kwargs"
-            )
-
-    def set(
-        self,
-        setter_cls: Type["Setter"],
-        config: Config = None
-    ):
-        if config is None:
-            config = get_config(setter_cls)
-        setter = setter_cls(config=config)
-        setter.set(self)
+class FlexibleModel(Model, extra=Extra.allow):
+    def asmodel(self, model: Type[Model]):
+        return model(**self.__dict__)

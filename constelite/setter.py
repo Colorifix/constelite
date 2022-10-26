@@ -1,24 +1,67 @@
-from typing import Generic, TypeVar, Optional
-from pydantic import validate_arguments
-from pydantic.generics import GenericModel
+from typing import List, Optional
 
-from constelite import get_method_name, Model
+from pydantic import validate_arguments, create_model
 
-ConfigT = TypeVar('ConfigT')
+from constelite import get_config, SetterAPIModel
+
+from loguru import logger
 
 
-class Setter(GenericModel, Generic[ConfigT]):
-    """Base class for setters
+class setter:
+    """Wrapper for setters
     """
-    config: Optional[ConfigT]
+    __setters: List[SetterAPIModel] = []
 
-    def set(self, model: Model):
-        method_name = get_method_name(model.__class__, 'set')
-        method = getattr(self, method_name, None)
+    @classmethod
+    @property
+    def setters(cls) -> List[SetterAPIModel]:
+        return cls.__setters
 
-        if method is None:
-            raise AttributeError(
-                f"Method '{method_name}' is not defined"
-                f" for {self.__class__}"
+    def __init__(self, name: str = None):
+        self.name = name
+
+    @logger.catch(reraise=True)
+    def __call__(self, fn):
+        fn_name = fn.__name__
+
+        if fn_name in self.__setters:
+            logger.warn(f"Duplicate of {fn_name} found. Skipping...")
+            return fn
+        else:
+            set_model = fn.__annotations__.get('model', None)
+
+            if set_model is None:
+                raise ValueError(
+                    f"Getter function {fn_name} has no 'model' argument."
+                )
+
+            config_model = fn.__annotations__.get('config', None)
+
+            fn_model = create_model(
+                fn.__name__,
+                model=(set_model, ...),
+                config=(Optional[config_model], None)
             )
-        validate_arguments(method)(model)
+
+            def wrapper(**kwargs):
+                config = kwargs.get('config', None)
+                if config is None:
+                    kwargs['config'] = get_config(config_model)
+
+                return validate_arguments(fn)(**kwargs)
+
+            path = fn.__name__
+            wrapper.__name__ = path
+
+            self.__setters.append(
+                SetterAPIModel(
+                    path=path,
+                    name=self.name,
+                    set_model=set_model,
+                    fn=wrapper,
+                    fn_model=fn_model,
+                    config=config_model
+                )
+            )
+
+            return wrapper
