@@ -3,7 +3,7 @@ from typing import List, Optional, Type
 
 from pydantic import create_model, validate_arguments
 
-from constelite import get_config, GetterAPIModel, Config
+from constelite import get_config, GetterAPIModel, Config, get_store
 
 from loguru import logger
 
@@ -39,6 +39,9 @@ class getter:
 
         if config_model is not None:
             fields['config'] = (Optional[config_model], None)
+
+        fields['store'] = (Optional[bool], False)
+
         return create_model(fn.__name__, **fields)
 
     @logger.catch(reraise=True)
@@ -65,7 +68,15 @@ class getter:
                     if config is None:
                         kwargs['config'] = get_config(config_model)
 
-                return validate_arguments(fn)(**kwargs)
+                to_store = kwargs.pop('store', None)
+
+                ret = validate_arguments(fn)(**kwargs)
+
+                if to_store is True:
+                    store = get_store()
+                    return store.store(ret)
+                else:
+                    return ret
 
             path = fn.__name__
             wrapper.__name__ = path

@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Optional
 
 from inspect import signature, Parameter
 
 from pydantic import validate_arguments, create_model
 
-from constelite import ProtocolAPIModel
+from constelite import ProtocolAPIModel, get_store
 
 from loguru import logger
 
@@ -38,6 +38,8 @@ class protocol:
             for param_name, param in signature(fn)._parameters.items()
         }
 
+        fields['store'] = (Optional[bool], False)
+
         return create_model(fn.__name__, **fields)
 
     def __call__(self, fn):
@@ -56,13 +58,27 @@ class protocol:
 
             model = self._generate_model(fn)
 
+            def wrapper(**kwargs) -> ret_model:
+                to_store = kwargs.pop('store')
+
+                ret = validate_arguments(fn)(**kwargs)
+
+                if to_store is True:
+                    store = get_store()
+                    return store.store(ret)
+                else:
+                    return ret
+
+            path = fn.__name__
+            wrapper.__name__ = path
+
             self.__protocols.append(
                 ProtocolAPIModel(
                     name=self.name,
-                    fn=fn,
+                    fn=wrapper,
                     ret_model=ret_model,
                     fn_model=model,
-                    path=fn.__name__
+                    path=path
                 )
             )
 

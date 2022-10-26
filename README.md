@@ -2,6 +2,10 @@
 
 ## Definitions
 
+### Config
+
+Configs are just clases that define configurations. They are based on `pydantic.BaseModel` and must have serializable fields. Config value are stored in `$API_CONFIG` file ('.config' by default) and are primarily used to auto-configure getters and setters.
+
 ### Model
 
 Model is just a class that is derived from `constelite.Model`, which is your ordinary `pydantic.BaseModel`.
@@ -34,6 +38,18 @@ A function wrapped in `@protocol` that convers one or more models into another m
 * Protocols must not call other protocols.
 * Protocols must use type hints for all arguments.
 * Protocols must have a return type specified.
+
+
+### Store
+
+Store allows to save models on the server for later use. Each stored model has a reference of type `Ref`. You can pass reference to setters and protocols instead of passing actual models. You can also ask protocol or getter to store the model and return you a reference insted by passing an extra `store = True` argument.
+
+Currently, we are using `pickle` as a store engine. You can setup a directory where the models are saved by adjusting `[StoreConfig]` section of the `$API_CONFIG` file.
+
+```toml
+[StoreConfig]
+path="/path/to/store"
+```
 
 ## How to
 
@@ -193,4 +209,42 @@ def get_uniprot_gene(config: UniprotGetterConfig, gene_id: str) -> Gene:
 ``` 
 call `client.getter.get_uniprot_gene(gene_id='...')`
 
-The remote calls can't resolve the return models (yet) so they will always return a `FlexbleModel` object or `None`. To convert `FlexibleModel` to the target model, you can use `FlexibleModel.asmodel()` method. 
+The remote calls can't resolve the return models (yet) so they will always return a `FlexbleModel` object or `None`. To convert `FlexibleModel` to the target model, you can use `FlexibleModel.asmodel()` method.
+
+### Work with store
+
+You can ask getter or protocol to sotre the returned model on the server and pass you the rerference instead.
+
+```python
+
+r_geneA = client.getter.get_uniprot_gene(gene_id='gene_a', store=True)
+
+
+gene = client.protocol.combine_genes(
+    genes=[
+        r_geneA,
+        geneB
+    ],
+    name='Gene C',
+    store=True
+)
+```
+
+Note that `ref_geneA` can be passed instead of an actual `Gene` model.
+
+You can also pass reference to setter instead of the model
+
+```python
+client.setter.set_model_to_terminal(model=ref_geneA)
+```
+
+You can also work directly with the store to load or save models
+
+
+```python
+gene = client.store.load(ref=ref_geneA)
+```
+
+```python
+r_GeneB = client.store.save(model=geneB)
+```

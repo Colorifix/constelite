@@ -1,10 +1,16 @@
 import os
 
+from pydantic import BaseModel, Extra
+
 from requests import Session
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from constelite import FlexibleModel
+from constelite import FlexibleModel, Ref
+
+
+class RequestModel(BaseModel, extra=Extra.allow):
+    pass
 
 
 class StarliteClient:
@@ -33,11 +39,15 @@ class StarliteClient:
     def setter(self):
         return StarliteClient(url=os.path.join(self.url, 'setter'))
 
+    @property
+    def store(self):
+        return StarliteClient(url=os.path.join(self.url, 'store'))
+
     def __getattr__(self, key):
         def wrapper(**kwargs):
             path = os.path.join(self.url, key)
 
-            obj = FlexibleModel(**kwargs)
+            obj = RequestModel(**kwargs)
 
             ret = self._http.post(
                 path,
@@ -46,7 +56,11 @@ class StarliteClient:
 
             if ret.status_code == 201:
                 if ret.text != '':
-                    return FlexibleModel(**ret.json())
+                    data = ret.json()
+                    ref = data.pop('ref', None)
+                    if ref is not None:
+                        return Ref(ref=ref)
+                    return FlexibleModel(**data)
             else:
                 raise Exception(f"Failed to call remote method\n {ret.text}")
         return wrapper
