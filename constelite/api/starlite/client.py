@@ -6,7 +6,7 @@ from requests import Session
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from constelite import FlexibleModel, Ref
+from constelite import Model, Ref
 
 
 class RequestModel(BaseModel, extra=Extra.allow):
@@ -60,7 +60,7 @@ class StarliteClient:
                     ref = data.pop('ref', None)
                     if ref is not None:
                         return Ref(ref=ref)
-                    return FlexibleModel(**data)
+                    return Model.resolve(values=data)
             else:
                 raise Exception(f"Failed to call remote method\n {ret.text}")
         return wrapper
