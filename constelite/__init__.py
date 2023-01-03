@@ -1,35 +1,23 @@
-from constelite.utils import get_method_name
-from constelite.config import get_config
+from constelite.utils import get_method_name, all_subclasses
+from constelite.config import load_config
 
-from constelite.models import Model, FlexibleModel, Ref
+from constelite.models import StateModel, FlexibleModel, Ref
 
-from constelite.store import BaseStore, PickleStore
+from constelite.store import BaseStore
 
 from constelite.api_models import (
     APIModel, ProtocolAPIModel
 )
 
-# from constelite.getter import getter
-# from constelite.setter import setter
-# from constelite.protocol import protocol
-
-# from constelite.api_base import ConsteliteAPI
-
 __all__ = [
     'get_method_name',
-    'get_config',
+    'all_subclasses',
+    'load_config',
     'APIModel',
-    'GetterAPIModel',
-    'SetterAPIModel',
     'ProtocolAPIModel',
-    'Model',
+    'StateModel',
     'FlexibleModel',
     'BaseStore',
-    'PickleStore',
     'Ref',
-    'getter',
-    'setter',
-    'protocol',
     'ProtocolAPIModel',
-    'ConsteliteAPI'
 ]

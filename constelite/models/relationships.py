@@ -3,7 +3,8 @@ from typing import Generic, List, TypeVar
 from pydantic import BaseModel
 from pydantic.generics import GenericModel
 
-from constelite.models.model import Model
+from constelite.models.model import StateModel
+from constelite.models.ref import Ref
 
 M = TypeVar('Model')
 
@@ -25,10 +26,10 @@ class Relationship(GenericModel, Generic[M]):
         MT = cls.__fields__['model_type'].type_
 
         class DummyModel(BaseModel):
-            v: List[MT]
+            v: List[Ref[MT]]
 
         dm = DummyModel(v=v)
-        assert issubclass(MT, Model)
+        assert issubclass(MT, StateModel)
         return dm.v
 
 

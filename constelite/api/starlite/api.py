@@ -13,7 +13,8 @@ from constelite import (
     get_store,
     Ref,
     FlexibleModel,
-    Model
+    Model,
+    resolve_model
 )
 
 import uvicorn
@@ -23,28 +24,43 @@ from loguru import logger
 ControllerType = Literal['protocol', 'getter', 'setter']
 
 
+def get_store(uid: UUID4):
+    config = load_config()
+
+    return next(
+        (store for store in config.stores if store.uid==uid),
+        None
+    )
+
+
 class StoreController(Controller):
     path = '/store'
 
-    class LoadRequest(BaseModel):
+    class RefRequest(BaseModel):
         ref: Ref
 
-    class StoreRequest(BaseModel):
-        model: Model
+    @post(path='/write')
+    def write(self, data: RefRequest) -> Ref:
+        ref = data.ref
+        ref.state = resolve_model(values=ref.state)
 
-    @post(path='/load', tags=['store'], description='Load model from store')
-    def load(self, data: LoadRequest) -> Optional[FlexibleModel]:
-        store = get_store()
+        store = get_store(ref.record.store.uid)
 
-        if store.ref_exists(data.ref):
-            return store.load(data.ref)
-        else:
-            return None
+        return store.put(ref)
 
-    @post(path='/save', tags=['store'], description='Store model')
-    def save(self, data: StoreRequest) -> Ref:
-        store = get_store()
-        return store.store(data)
+    # @post(path='/load', tags=['store'], description='Load model from store')
+    # def load(self, data: LoadRequest) -> Optional[FlexibleModel]:
+    #     store = get_store()
+
+    #     if store.ref_exists(data.ref):
+    #         return store.load(data.ref)
+    #     else:
+    #         return None
+
+    # @post(path='/save', tags=['store'], description='Store model')
+    # def save(self, data: StoreRequest) -> Ref:
+    #     store = get_store()
+    #     return store.store(data)
 
 
 class StarliteAPI(ConsteliteAPI):

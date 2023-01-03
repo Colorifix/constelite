@@ -1,10 +1,10 @@
-from constelite.models.model import Model
+from constelite.models.model import StateModel
 
 from pydantic.generics import GenericModel
 from typing import Generic, TypeVar, List, Union
 
 
-class Object(Model):
+class Object(StateModel):
     name: str
 
 
