@@ -1,25 +1,14 @@
 from pydantic import BaseModel, Extra, root_validator
 from typing import Type, Optional, Any, Dict
 
-from constelite import get_store, Ref
+from constelite.config import get_config
 
 
-class Model(BaseModel):
-    """A base model for all constelite models.
+class ConsteliteBaseModel(BaseModel):
+    model: Optional[str]
 
-    Attrs:
-        model: A name of the model class.
-        ref: Reference to the object in store.
-    """
-    ref: Optional[Ref]
-    model: str
-
-    @root_validator(pre=True)
-    def validate_ref(cls, values):
-        if 'ref' in values and values['ref'] is not None:
-            store = get_store()
-            model = store.load(Ref(ref=values['ref']))
-            return model.dict()
+    @root_validator()
+    def assign_model(cls, values):
         values['model'] = cls.__name__
         return values
 
@@ -73,6 +62,34 @@ class Model(BaseModel):
             else:
                 model_cls = FlexibleModel
         return model_cls(**values)
+
+
+class Ref(BaseModel):
+    ref: str
+    store_name: str
+
+
+class Model(ConsteliteBaseModel):
+    """A base model for all constelite models.
+
+    Attrs:
+        model: A name of the model class.
+        ref: Reference to the object in store.
+    """
+    ref: Optional[Ref]
+
+    # @root_validator(pre=True)
+    # def validate_ref(cls, values):
+    #     from constelite.store import RefQuery
+    #     ref = values.get('ref', None)
+
+    #     if ref is not None:
+    #         store = get_config(ref.store_name)
+    #         if store is not None:
+    #             model = store.get(query=RefQuery(ref=ref))
+    #             values = model.dict()
+
+    #     return values
 
 
 class FlexibleModel(Model, extra=Extra.allow):

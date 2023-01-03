@@ -1,7 +1,7 @@
 from typing import Callable, Optional, Type
 from pydantic import BaseModel
 
-from constelite import Model, Config
+# from constelite import Model, Config
 
 
 class APIModel(BaseModel):
@@ -14,13 +14,13 @@ class APIModel(BaseModel):
     ret_model: Optional[Type[BaseModel]] = None
 
 
-class GetterAPIModel(APIModel):
-    config: Optional[Type[Config]]
+# class GetterAPIModel(APIModel):
+#     config: Optional[Type[Config]]
 
 
-class SetterAPIModel(APIModel):
-    set_model: Type[Model]
-    config: Optional[Type[Config]]
+# class SetterAPIModel(APIModel):
+#     set_model: Type[Model]
+#     config: Optional[Type[Config]]
 
 
 class ProtocolAPIModel(APIModel):
