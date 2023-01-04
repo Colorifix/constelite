@@ -26,7 +26,7 @@ class Relationship(GenericModel, Generic[M]):
         MT = cls.__fields__['model_type'].type_
 
         class DummyModel(BaseModel):
-            v: List[Ref[MT]]
+            v: List[Ref]
 
         dm = DummyModel(v=v)
         assert issubclass(MT, StateModel)

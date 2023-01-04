@@ -7,7 +7,7 @@ from pydantic import BaseModel, root_validator
 from constelite.models import (
     StateModel, Ref,
     TimePoint,
-    StaticTypes, RelInspector, StateInspector,
+    StaticTypes, Dynamic, RelInspector, StateInspector,
     StoreModel, StoreRecordModel, UID
 )
 
@@ -43,10 +43,10 @@ class BaseStore(StoreModel):
             values['name'] = cls.__name__
         return values
 
-    def ref_exists(self, ref: Ref) -> bool:
+    def uid_exists(self, uid: UID) -> bool:
         raise NotImplementedError
 
-    def generate_ref(self, state: Optional[StateModel], uid: UID):
+    def generate_ref(self, uid: UID, state: Optional[StateModel] = None):
         return Ref(
             record=StoreRecordModel(
                 store=self,
@@ -58,11 +58,11 @@ class BaseStore(StoreModel):
     def _validate_ref(self, ref: Ref):
         if ref.record is None:
             raise ValueError("Reference does not have a store record")
-        if ref.record.name != self.name:
+        if ref.record.store.uid != self.uid:
             raise ValueError(
                 'Reference store record is from a different store'
             )
-        if not self.ref_exists(ref):
+        if not self.uid_exists(ref.record.uid):
             raise KeyError('Ref does not exist in the store')
 
     def _validate_method(self, method: StoreMethod):
@@ -73,7 +73,8 @@ class BaseStore(StoreModel):
 
     def create_model(
             self,
-            inspector: StateInspector) -> str:
+            static_props: Dict[str, StaticTypes],
+            dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
         raise NotImplementedError
 
     def delete_model(
@@ -83,29 +84,29 @@ class BaseStore(StoreModel):
 
     def overwrite_static_props(
             self,
-            model_ref: Ref,
+            uid: UID,
             props: Dict[str, StaticTypes]) -> None:
         raise NotImplementedError
 
     def overwrite_dynamic_props(
             self,
-            model_ref: Ref,
-            props: Dict[str, List[TimePoint]]) -> None:
+            uid: UID,
+            props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
     def extend_dynamic_props(
             self,
             model_ref: Ref,
-            props: Dict[str, List[TimePoint]]) -> None:
+            props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
     def delete_all_relationships(
             self,
-            from_uid: Ref,
+            from_uid: UID,
             rel_from_name: str) -> List[UID]:
         raise NotImplementedError
 
-    def create_relationships(self, rel: RelInspector) -> None:
+    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
         raise NotImplementedError
 
     def get_model_by_ref(self, query: RefQuery) -> StateModel:
@@ -115,8 +116,9 @@ class BaseStore(StoreModel):
         raise NotImplementedError
 
     def _update_relationships(
+            self,
             method: Callable,
-            self, from_uid: UID,
+            from_uid: UID,
             field_name: str, rel: RelInspector,
             overwrite: bool = False,
             delete_orphans: bool = False):
@@ -133,15 +135,15 @@ class BaseStore(StoreModel):
 
         to_objs_refs = []
 
-        for to_obj in rel.to_objs:
-            obj_ref = method(to_obj)
+        for to_ref in rel.to_refs:
+            obj_ref = method(ref=to_ref)
             to_objs_refs.append(obj_ref)
 
-        rel.to_objs = to_objs_refs
+        rel.to_refs = to_objs_refs
 
         self.create_relationships(
             from_uid=from_uid,
-            rels=rel
+            inspector=rel
         )
 
     def put(self, ref: Ref) -> Ref:
@@ -150,7 +152,11 @@ class BaseStore(StoreModel):
         inspector = StateInspector.from_state(ref.state)
 
         if ref.record is None:
-            uid = self.create_model(inspector)
+            uid = self.create_model(
+                model_cls=inspector.model_type,
+                static_props=inspector.static_props,
+                dynamic_props=inspector.dynamic_props
+            )
 
             for field_name, rel in (
                 inspector.associations | inspector.aggregations
@@ -168,11 +174,11 @@ class BaseStore(StoreModel):
         else:
             self._validate_ref(ref)
             self.overwrite_static_props(
-                record_uid=ref.uid,
+                uid=ref.uid,
                 props=inspector.static_props
             )
             self.overwrite_dynamic_props(
-                record_uid=ref.uid,
+                uid=ref.uid,
                 props=inspector.dynamic_props
             )
             for field_name, rel in (
@@ -199,19 +205,23 @@ class BaseStore(StoreModel):
             return self.generate_ref(uid=ref.uid)
 
     def patch(self, ref: Ref) -> Ref:
+        breakpoint()
         self._validate_method('PATCH')
 
         self._validate_ref(ref=ref)
 
+        if ref.state is None:
+            return ref
+
         inspector = StateInspector.from_state(ref.state)
 
         self.overwrite_static_props(
-            model_ref=inspector.ref,
+            uid=ref.uid,
             props=inspector.static_props
         )
 
         self.extend_dynamic_props(
-            model_ref=inspector.ref,
+            uid=ref.uid,
             props=inspector.dynamic_props
         )
 
@@ -261,11 +271,14 @@ class BaseStore(StoreModel):
 
         self.delete_model(uid=ref.uid)
 
-    def get(self, ref: Ref) -> List[Ref]:
+    def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
         self._validate_ref(ref)
 
-        return self.get_model_by_uid(ref.uid)
+        return self.generate_ref(
+            uid=ref.record.uid,
+            state=self.get_model_by_uid(ref.uid)
+        )
 
     def query(self, query: Query) -> List[Ref]:
         return []

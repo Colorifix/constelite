@@ -2,11 +2,12 @@ from typing import Dict, List
 import os
 import toml
 
-from constelite.models.auto_resolve import AutoResolveBaseModel
+from pydantic import BaseModel
+
 from constelite.models.store import StoreModel
 
 
-class Config(AutoResolveBaseModel):
+class Config(BaseModel):
     stores: List[StoreModel]
 
 
@@ -25,7 +26,7 @@ def search_key(key: str, data: Dict, parent: str = "root"):
         return search_key(remainder, data, f"{parent}.{sub_key}")
 
 
-def load_config(key: str):
+def load_config():
     env = os.getenv("API_CONFIG", ".config")
     try:
         data = toml.load(env)

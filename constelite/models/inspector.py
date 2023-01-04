@@ -4,8 +4,8 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import ModelField
 
-from constelite.models.store import UID
 from constelite.models.model import StateModel
+from constelite.models.ref import Ref
 from constelite.models.relationships import (
     Relationship, Association, Aggregation, Composition, Backref
 )
@@ -27,7 +27,7 @@ def type_name(model: Union[Type[StateModel], ForwardRef]):
 class RelInspector(BaseModel):
     from_field_name: str
     to_field_name: Optional[str] = ...
-    to_objs: Optional[List[UID]]
+    to_refs: Optional[List[Ref]]
     rel_type: Literal['Association', 'Composition', 'Aggregation']
 
     @classmethod
@@ -35,7 +35,7 @@ class RelInspector(BaseModel):
             cls,
             from_model_type: Type[StateModel],
             field: ModelField,
-            to_objs: Optional[List[UID]]):
+            to_refs: Optional[List[Ref]]):
 
         rel_type = field.type_
         rel_to_model = rel_type.model
@@ -56,8 +56,8 @@ class RelInspector(BaseModel):
 
         return cls(
             from_field_name=field.name,
-            to_field_name=backref.name,
-            to_objs=to_objs,
+            to_field_name=backref.name if backref is not None else None,
+            to_refs=to_refs,
             rel_type=type_name(rel_type).split('[')[0]
         )
 
@@ -93,19 +93,19 @@ class StateInspector(BaseModel):
                 associations[field_name] = RelInspector.from_field(
                     from_model_type=type(model),
                     field=field,
-                    values=value
+                    to_refs=value
                 )
             elif issubclass(field.type_, Aggregation):
                 aggregations[field_name] = RelInspector.from_field(
                     from_model_type=type(model),
                     field=field,
-                    values=value
+                    to_refs=value
                 )
             elif issubclass(field.type_, Composition):
                 compositions[field_name] = RelInspector.from_field(
                     from_model_type=type(model),
                     field=field,
-                    values=value
+                    to_refs=value
                 )
             else:
                 static_props[field_name] = value

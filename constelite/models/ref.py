@@ -3,12 +3,14 @@ from typing import Generic, TypeVar, Optional
 from pydantic.generics import GenericModel
 from pydantic import UUID4
 
+from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel
 
 M = TypeVar('StateModel')
 
 
 class Ref(GenericModel, Generic[M]):
+    model_name = 'Ref'
 
     @property
     def uid(self):
@@ -24,3 +26,9 @@ class Ref(GenericModel, Generic[M]):
             guid=self.guid,
             state=None
         )
+
+
+def ref(model: StateModel, guid: Optional[UUID4] = None):
+    return Ref(
+        state=model
+    )

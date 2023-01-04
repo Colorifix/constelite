@@ -1,14 +1,15 @@
+from typing import Optional
 from constelite.models.auto_resolve import AutoResolveBaseModel
-from pydantic import UUID4
+from pydantic import UUID4, BaseModel
 
 UID = str
 
 
-class StoreModel(AutoResolveBaseModel):
+class StoreModel(BaseModel):
     uid: UUID4
-    name: str
+    name: Optional[str]
 
 
-class StoreRecordModel(AutoResolveBaseModel):
+class StoreRecordModel(BaseModel):
     store: StoreModel
     uid: UID

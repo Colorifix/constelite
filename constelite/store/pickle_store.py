@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import os
 
@@ -6,42 +6,41 @@ import pickle
 
 from uuid import uuid4
 
-from constelite.models.model import Ref, Model
-from constelite.models.dynamic import TimePoint, Dynamic
+from pydantic import Field
+
+from constelite.models import (
+    Ref, StateModel, UID, TimePoint, Dynamic,
+    StaticTypes, RelInspector
+)
+
 from constelite.store import (
-    BaseStore, StaticTypes, ModelInspector, RelInspector,
-    RefQuery, BackrefQuery
+    BaseStore
 )
 
 
 class PickleStore(BaseStore):
-    path: str
+    _allowed_methods = ["PUT", "GET", "PATCH"]
+    path: Optional[str] = Field(exclude=True)
 
-    def __post_init_post_parse__(self):
+    def __init__(self, **data):
+        super().__init__(**data)
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
 
-    def new_ref(self) -> Ref:
-        ref = None
-        while ref is None or self.ref_exists(ref):
-            ref = Ref(ref=str(uuid4()), store_name=self.ref)
-
-        return ref
-
-    def ref_exists(self, ref: Ref) -> bool:
-        path = os.path.join(self.path, ref.ref)
+    def uid_exists(self, uid: UID) -> bool:
+        path = os.path.join(self.path, uid)
         return os.path.exists(path)
 
-    def load(self, ref: Ref) -> "Model":
-        if not self.ref_exists(ref):
-            raise ValueError(f"Model with reference '{ref}' cannon be found")
+    def get_model_by_uid(self, uid: UID) -> "StateModel":
+        if not self.uid_exists(uid):
+            raise ValueError(f"Model with reference '{uid}' cannon be found")
         else:
-            path = os.path.join(self.path, ref.ref)
+            path = os.path.join(self.path, uid)
             with open(path, 'rb') as f:
                 return pickle.load(f)
 
-    def store(self, model):
-        path = os.path.join(self.path, model.ref.ref)
+    def store(self, uid: UID, model: StateModel) -> UID:
+        path = os.path.join(self.path, uid)
 
         exception = None
 
@@ -55,60 +54,63 @@ class PickleStore(BaseStore):
             os.remove(path)
             raise exception
 
+        return uid
+
     def create_model(
             self,
-            inspector: ModelInspector) -> Model:
+            model_cls: StateModel,
+            static_props: Dict[str, StaticTypes],
+            dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
 
-        ref = self.new_ref()
-
-        model = inspector.model_type(
-            ref=ref,
-            **(inspector.static_props | inspector.dynamic_props)
+        model = model_cls(
+            **(static_props | dynamic_props)
         )
-        self.store(model)
-        return model
+        uid = str(uuid4())
+        uid = self.store(uid=uid, model=model)
+        return uid
 
     def delete_model(
             self,
-            ref: Ref) -> None:
-        if self.ref_exists(ref):
-            path = os.path.join(self.path, ref.ref)
+            uid: UID) -> None:
+        if self.uid_exists(uid):
+            path = os.path.join(self.path, uid)
             os.remove(path)
 
     def overwrite_static_props(
             self,
-            model_ref: Ref,
+            uid: UID,
             props: Dict[str, StaticTypes]) -> None:
 
-        model = self.load(ref=model_ref.ref)
+        model = self.get_model_by_uid(uid=uid)
         data = model.dict()
         data.update(props)
 
-        new_model = self.model.__class__(
+        new_model = model.__class__(
             **data
         )
 
-        self.store(new_model)
+        self.store(uid=uid, model=new_model)
 
     def overwrite_dynamic_props(
             self,
-            model_ref: Ref,
+            uid: UID,
             props: Dict[str, List[TimePoint]]) -> None:
 
-        model = self.load(ref=model_ref.ref)
+        model = self.get_model_by_uid(uid=uid)
         data = model.dict()
         data.update(props)
 
         new_model = self.model.__class__(
             **data
         )
-        self.store(new_model)
+        self.store(uid=uid, model=new_model)
 
     def extend_dynamic_props(
             self,
-            model_ref: Ref,
-            props: Dict[str, List[TimePoint]]) -> None:
-        model = self.load(ref=model_ref)
+            uid: UID,
+            props: Dict[str, Optional[Dynamic]]) -> None:
+        model = self.get_model_by_uid(uid=uid)
+
         for prop_name, prop in props.items():
             points = getattr(
                 model,
@@ -122,49 +124,55 @@ class PickleStore(BaseStore):
                 prop_name,
                 Dynamic[prop._point_type](points=points)
             )
-        self.store(model)
+        self.store(uid=uid, model=model)
 
     def delete_all_relationships(
             self,
-            from_ref: Ref,
+            from_uid: UID,
             rel_from_name: str,
-            delete_to_nodes: bool) -> List['Model']:
+            ) -> List[UID]:
 
-        model = self.load(ref=from_ref.ref)
+        model = self.get_model_by_uid(uid=from_uid)
 
-        orphans = getattr(model, rel_from_name, [])
+        orphan_refs = getattr(model, rel_from_name, [])
         setattr(model, rel_from_name, [])
 
         self.store(model)
 
-        return orphans
+        return [orphan_ref.record.uid for orphan_ref in orphan_refs]
 
-    def create_relationships(self, from_ref: Ref, rels: RelInspector) -> None:
-        model = self.load(ref=from_ref.ref)
+    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
+        from_model = self.get_model_by_uid(uid=from_uid)
 
-        to_objs = getattr(model, rels.from_field_name, [])
-        if to_objs is None:
-            to_objs = []
+        to_refs = getattr(from_model, inspector.from_field_name, [])
+        if to_refs is None:
+            to_refs = []
 
-        new_to_nodes = rels.to_objs if rels.to_objs is not None else []
+        new_to_refs = (
+            inspector.to_refs
+            if inspector.to_refs is not None
+            else []
+        )
 
-        for to_node in new_to_nodes:
-            to_objs.append(to_node)
-            if rels.to_field is not None:
-                to_node_store = self.models[to_node.ref.ref]
-                backref_list = getattr(to_node_store, rels.to_field)
+        for to_ref in new_to_refs:
+            to_uid = to_ref.uid
+            to_refs.append(to_ref)
+            if inspector.to_field_name is not None:
+                to_model = self.get_model_by_uid(uid=to_uid)
+                backref_list = getattr(to_model, inspector.to_field_name)
+                from_ref = self.generate_ref(uid=from_uid)
                 if backref_list is None:
-                    backref_list = [model]
+                    backref_list = [from_ref]
                 else:
-                    backref_list.append(model)
-                setattr(to_node_store, rels.to_field, backref_list)
-                self.models[to_node.ref.ref] = to_node_store
-        setattr(model, rels.from_field_name, to_objs)
-        self.store(model)
+                    backref_list.append(from_ref)
+                setattr(to_model, inspector.to_field_name, backref_list)
+                self.store(uid=to_uid, model=to_model)
+        setattr(from_model, inspector.from_field_name, to_refs)
+        self.store(uid=from_uid, model=from_model)
 
-    def get_model_by_ref(self, query: RefQuery) -> Model:
-        if self.ref_exists(query.ref):
-            return self.load(ref=query.ref)
+    # def get_model_by_ref(self, query: RefQuery) -> StateModel:
+    #     if self.uid_exists(query.ref):
+    #         return self.get_model_by_uid(ref=query.ref)
 
-    def get_model_by_backref(self, query: BackrefQuery) -> List[Model]:
-        return None
+    # def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
+    #     return None
