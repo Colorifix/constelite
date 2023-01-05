@@ -9,7 +9,7 @@ from uuid import uuid4
 from pydantic import Field
 
 from constelite.models import (
-    Ref, StateModel, UID, TimePoint, Dynamic,
+    StateModel, UID, TimePoint, Dynamic,
     StaticTypes, RelInspector
 )
 
@@ -19,7 +19,7 @@ from constelite.store import (
 
 
 class PickleStore(BaseStore):
-    _allowed_methods = ["PUT", "GET", "PATCH"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE"]
     path: Optional[str] = Field(exclude=True)
 
     def __init__(self, **data):
@@ -137,7 +137,7 @@ class PickleStore(BaseStore):
         orphan_refs = getattr(model, rel_from_name, [])
         setattr(model, rel_from_name, [])
 
-        self.store(model)
+        self.store(uid=from_uid, model=model)
 
         return [orphan_ref.record.uid for orphan_ref in orphan_refs]
 
@@ -170,9 +170,3 @@ class PickleStore(BaseStore):
         setattr(from_model, inspector.from_field_name, to_refs)
         self.store(uid=from_uid, model=from_model)
 
-    # def get_model_by_ref(self, query: RefQuery) -> StateModel:
-    #     if self.uid_exists(query.ref):
-    #         return self.get_model_by_uid(ref=query.ref)
-
-    # def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
-    #     return None

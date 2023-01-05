@@ -5,19 +5,13 @@ from constelite.models import StateModel, FlexibleModel, Ref
 
 from constelite.store import BaseStore
 
-from constelite.api_models import (
-    APIModel, ProtocolAPIModel
-)
 
 __all__ = [
     'get_method_name',
     'all_subclasses',
     'load_config',
-    'APIModel',
-    'ProtocolAPIModel',
     'StateModel',
     'FlexibleModel',
     'BaseStore',
     'Ref',
-    'ProtocolAPIModel',
 ]

@@ -1,131 +1,25 @@
 import inspect
 
-from pydantic import BaseModel, UUID4, root_validator, validator
+from pydantic import BaseModel, root_validator, validator
 
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional
 
 from starlite import Controller, Starlite, OpenAPIConfig, MiddlewareProtocol, State
-from starlite import post, delete
+from starlite import post
 
 from openapi_schema_pydantic import Tag
 
-from constelite.config import load_config
 from constelite.models import StateModel, Ref, StoreModel, resolve_model
-from constelite.api_base import ConsteliteAPI
 from constelite.store import BaseStore
+from constelite.api.api import ConsteliteAPI
 
 import uvicorn
 
 from loguru import logger
 
+from constelite.api.starlite.controllers import StoreController
+
 ControllerType = Literal['protocol', 'getter', 'setter']
-
-
-class StoreController(Controller):
-    path = '/store'
-
-    class PostRequest(BaseModel):
-        ref: Ref
-        store: Optional[StoreModel]
-
-        @root_validator
-        def root(cls, values):
-            store = values.get("store", None)
-            ref = values["ref"]
-
-            if store is None and ref.record is None:
-                raise ValueError(
-                    "Unknown store."
-                    "Either send a reference with a record or supply a store"
-                )
-            if store is None:
-                values['store'] = ref.record.store
-            return values
-
-    class RefRequest(BaseModel):
-        ref: Ref
-
-        @validator('ref')
-        def validate_ref_store(cls, value):
-            if value.record is None:
-                raise ValueError("Reference has an empy record")
-            return value
-
-    @post('/put')
-    def put(self, data: PostRequest, state: State) -> Ref:
-        # breakpoint()
-        ref = data.ref
-
-        ref.state = resolve_model(values=ref.state)
-
-        store = next(
-            (
-                store for store in state['stores']
-                if store.uid == data.store.uid),
-            None
-        )
-
-        if store is None:
-            raise ValueError("Store not found")
-        return store.put(ref)
-
-    @post('/get')
-    def get(self, data: RefRequest, state: State) -> StateModel:
-        ref = data.ref
-
-        record = data.ref.record
-
-        if record is None:
-            raise ValueError("Reference does not contain a store record")
-
-        store = next(
-            (
-                store for store in state['stores']
-                if store.uid == record.store.uid),
-            None
-        )
-
-        if store is None:
-            raise ValueError("Store not found")
-        return store.get(ref)
-
-    @post('/patch')
-    def patch(self, data: RefRequest, state: State) -> Ref:
-        ref = data.ref
-        record = data.ref.record
-        if record is None:
-            raise ValueError("Reference does not contain a store record")
-
-        ref.state = resolve_model(values=ref.state)
-
-        store = next(
-            (
-                store for store in state['stores']
-                if store.uid == store.uid),
-            None
-        )
-
-        if store is None:
-            raise ValueError("Store not found")
-        return store.patch(ref)
-    # @patch
-    # def patch(self, data: RefRequest) -> Ref:
-    #     ref = data.ref
-    #     ref.state = resolve_model(values=ref.state)
-
-    # @post(path='/load', tags=['store'], description='Load model from store')
-    # def load(self, data: LoadRequest) -> Optional[FlexibleModel]:
-    #     store = get_store()
-
-    #     if store.ref_exists(data.ref):
-    #         return store.load(data.ref)
-    #     else:
-    #         return None
-
-    # @post(path='/save', tags=['store'], description='Store model')
-    # def save(self, data: StoreRequest) -> Ref:
-    #     store = get_store()
-    #     return store.store(data)
 
 
 class StarliteAPI(ConsteliteAPI):

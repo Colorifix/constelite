@@ -46,6 +46,51 @@ class BaseStore(StoreModel):
     def uid_exists(self, uid: UID) -> bool:
         raise NotImplementedError
 
+    def create_model(
+            self,
+            model_cls: StateModel,
+            static_props: Dict[str, StaticTypes],
+            dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
+        raise NotImplementedError
+
+    def delete_model(
+            self,
+            uid: UID) -> None:
+        raise NotImplementedError
+
+    def overwrite_static_props(
+            self,
+            uid: UID,
+            props: Dict[str, StaticTypes]) -> None:
+        raise NotImplementedError
+
+    def overwrite_dynamic_props(
+            self,
+            uid: UID,
+            props: Dict[str, Optional[Dynamic]]) -> None:
+        raise NotImplementedError
+
+    def extend_dynamic_props(
+            self,
+            uid: UID,
+            props: Dict[str, Optional[Dynamic]]) -> None:
+        raise NotImplementedError
+
+    def delete_all_relationships(
+            self,
+            from_uid: UID,
+            rel_from_name: str) -> List[UID]:
+        raise NotImplementedError
+
+    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
+        raise NotImplementedError
+
+    def get_model_by_uid(self, uid: UID) -> StateModel:
+        raise NotImplementedError
+
+    def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
+        raise NotImplementedError
+
     def generate_ref(self, uid: UID, state: Optional[StateModel] = None):
         return Ref(
             record=StoreRecordModel(
@@ -70,50 +115,6 @@ class BaseStore(StoreModel):
             raise NotImplementedError(
                 f'{method} is not allowed for {self.name}'
             )
-
-    def create_model(
-            self,
-            static_props: Dict[str, StaticTypes],
-            dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
-        raise NotImplementedError
-
-    def delete_model(
-            self,
-            uid: UID) -> None:
-        raise NotImplementedError
-
-    def overwrite_static_props(
-            self,
-            uid: UID,
-            props: Dict[str, StaticTypes]) -> None:
-        raise NotImplementedError
-
-    def overwrite_dynamic_props(
-            self,
-            uid: UID,
-            props: Dict[str, Optional[Dynamic]]) -> None:
-        raise NotImplementedError
-
-    def extend_dynamic_props(
-            self,
-            model_ref: Ref,
-            props: Dict[str, Optional[Dynamic]]) -> None:
-        raise NotImplementedError
-
-    def delete_all_relationships(
-            self,
-            from_uid: UID,
-            rel_from_name: str) -> List[UID]:
-        raise NotImplementedError
-
-    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
-        raise NotImplementedError
-
-    def get_model_by_ref(self, query: RefQuery) -> StateModel:
-        raise NotImplementedError
-
-    def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
-        raise NotImplementedError
 
     def _update_relationships(
             self,
@@ -205,7 +206,6 @@ class BaseStore(StoreModel):
             return self.generate_ref(uid=ref.uid)
 
     def patch(self, ref: Ref) -> Ref:
-        breakpoint()
         self._validate_method('PATCH')
 
         self._validate_ref(ref=ref)
@@ -251,18 +251,20 @@ class BaseStore(StoreModel):
 
         self._validate_ref(ref=ref)
 
-        inspector = StateInspector.from_state(ref.state)
+        state = self.get_model_by_uid(uid=ref.uid)
+
+        inspector = StateInspector.from_state(state)
 
         for field_name, rel in (
-                    inspector.associations | inspector.associations).items():
+                    inspector.associations | inspector.aggregations).items():
             self.delete_all_relationships(
-                from_ref=inspector.ref,
+                from_uid=ref.uid,
                 rel_from_name=field_name
             )
 
         for field_name, rel in inspector.compositions.items():
             orphan_models = self.delete_all_relationships(
-                from_ref=inspector.ref,
+                from_uid=ref.uid,
                 rel_from_name=field_name
             )
 
@@ -282,9 +284,3 @@ class BaseStore(StoreModel):
 
     def query(self, query: Query) -> List[Ref]:
         return []
-
-    def ref(self, ref: str):
-        return Ref(
-            ref=ref,
-            store_name=self.name
-        )

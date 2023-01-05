@@ -1,5 +1,5 @@
-from typing import Optional, List
-from pydantic import BaseModel, UUID4
+from typing import Callable, Optional, Type, List
+from pydantic import UUID4, BaseModel
 
 from constelite.store import BaseStore
 
@@ -32,3 +32,13 @@ class ConsteliteAPI:
             ),
             None
         )
+
+
+class ProtocolModel(BaseModel):
+    """Base class for API methods
+    """
+    path: str
+    name: Optional[str]
+    fn: Callable
+    fn_model: Type[BaseModel]
+    ret_model: Optional[Type[BaseModel]] = None
