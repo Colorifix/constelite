@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Type
 
 import os
 
@@ -31,7 +31,11 @@ class PickleStore(BaseStore):
         path = os.path.join(self.path, uid)
         return os.path.exists(path)
 
-    def get_model_by_uid(self, uid: UID) -> "StateModel":
+    def get_model_by_uid(
+            self,
+            uid: UID,
+            model_type: Type[StateModel]
+    ) -> StateModel:
         if not self.uid_exists(uid):
             raise ValueError(f"Model with reference '{uid}' cannon be found")
         else:
@@ -58,11 +62,11 @@ class PickleStore(BaseStore):
 
     def create_model(
             self,
-            model_cls: StateModel,
+            model_type: StateModel,
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
 
-        model = model_cls(
+        model = model_type(
             **(static_props | dynamic_props)
         )
         uid = str(uuid4())
@@ -71,6 +75,7 @@ class PickleStore(BaseStore):
 
     def delete_model(
             self,
+            model_type: Type[StateModel],
             uid: UID) -> None:
         if self.uid_exists(uid):
             path = os.path.join(self.path, uid)
@@ -94,6 +99,7 @@ class PickleStore(BaseStore):
     def overwrite_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, List[TimePoint]]) -> None:
 
         model = self.get_model_by_uid(uid=uid)
@@ -108,6 +114,7 @@ class PickleStore(BaseStore):
     def extend_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         model = self.get_model_by_uid(uid=uid)
 

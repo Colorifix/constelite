@@ -4,6 +4,18 @@ from constelite.utils import all_subclasses
 from constelite.models import AutoResolveBaseModel, Ref, FlexibleModel
 
 
+def get_auto_resolve_model(model_name: str):
+    model_type = next(
+        (
+            m for m in all_subclasses(AutoResolveBaseModel)
+            if m.__name__ == model_name
+        ),
+        None
+    )
+
+    return model_type
+
+
 def resolve_model(
         values: Dict[str, Any],
         force: bool = False
@@ -37,23 +49,17 @@ def resolve_model(
             return FlexibleModel(**values)
 
     if model_name == "Ref":
-        model_cls = Ref
+        model_type = Ref
     else:
-        model_cls = next(
-            (
-                m for m in all_subclasses(AutoResolveBaseModel)
-                if m.__name__ == model_name
-            ),
-            None
-        )
+        model_type = get_auto_resolve_model(model_name=model_name)
 
-    if model_cls is None:
+    if model_type is None:
         if force is False:
             raise ValueError(
                 f"Model '{model_name}' is not found"
             )
         else:
-            model_cls = FlexibleModel
+            model_type = FlexibleModel
 
     for key, value in values.items():
         if isinstance(value, dict) and 'model_name' in value:
@@ -65,4 +71,4 @@ def resolve_model(
             for i, item in enumerate(value):
                 if isinstance(item, dict) and 'model_name' in item:
                     value[i] = resolve_model(values=item, force=force)
-    return model_cls(**values)
+    return model_type(**values)

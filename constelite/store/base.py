@@ -1,14 +1,15 @@
 from typing import (
-    Dict, List, Optional, Literal, ClassVar, Callable
+    Dict, List, Optional, Literal, ClassVar, Callable, Type, Any
 )
 
 from pydantic import BaseModel, root_validator
 
+
 from constelite.models import (
     StateModel, Ref,
-    TimePoint,
     StaticTypes, Dynamic, RelInspector, StateInspector,
-    StoreModel, StoreRecordModel, UID
+    StoreModel, StoreRecordModel, UID,
+    get_auto_resolve_model
 )
 
 
@@ -48,13 +49,14 @@ class BaseStore(StoreModel):
 
     def create_model(
             self,
-            model_cls: StateModel,
+            model_type: StateModel,
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
         raise NotImplementedError
 
     def delete_model(
             self,
+            model_type: Type[StateModel],
             uid: UID) -> None:
         raise NotImplementedError
 
@@ -67,12 +69,14 @@ class BaseStore(StoreModel):
     def overwrite_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
     def extend_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
@@ -85,19 +89,29 @@ class BaseStore(StoreModel):
     def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
         raise NotImplementedError
 
-    def get_model_by_uid(self, uid: UID) -> StateModel:
+    def get_model_by_uid(
+            self,
+            uid: UID,
+            model_type: Type[StateModel]
+    ) -> StateModel:
         raise NotImplementedError
 
     def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
         raise NotImplementedError
 
-    def generate_ref(self, uid: UID, state: Optional[StateModel] = None):
+    def generate_ref(
+        self,
+        uid: UID,
+        state_model_name: Optional[str] = None,
+        state: Optional[StateModel] = None
+    ):
         return Ref(
             record=StoreRecordModel(
                 store=self,
                 uid=uid
             ),
-            state=state
+            state=state,
+            state_model_name=state_model_name
         )
 
     def _validate_ref(self, ref: Ref):
@@ -149,12 +163,11 @@ class BaseStore(StoreModel):
 
     def put(self, ref: Ref) -> Ref:
         self._validate_method('PUT')
-
         inspector = StateInspector.from_state(ref.state)
 
         if ref.record is None:
             uid = self.create_model(
-                model_cls=inspector.model_type,
+                model_type=inspector.model_type,
                 static_props=inspector.static_props,
                 dynamic_props=inspector.dynamic_props
             )
@@ -170,7 +183,10 @@ class BaseStore(StoreModel):
                     rel=rel
                 )
 
-            return self.generate_ref(uid=uid)
+            return self.generate_ref(
+                uid=uid,
+                state_model_name=ref.state_model_name
+            )
 
         else:
             self._validate_ref(ref)
@@ -180,6 +196,7 @@ class BaseStore(StoreModel):
             )
             self.overwrite_dynamic_props(
                 uid=ref.uid,
+                model_type=inspector.model_type,
                 props=inspector.dynamic_props
             )
             for field_name, rel in (
@@ -203,7 +220,10 @@ class BaseStore(StoreModel):
                     delete_orphans=True
                 )
 
-            return self.generate_ref(uid=ref.uid)
+            return self.generate_ref(
+                uid=ref.uid,
+                state_model_name=ref.state_model_name
+            )
 
     def patch(self, ref: Ref) -> Ref:
         self._validate_method('PATCH')
@@ -244,7 +264,10 @@ class BaseStore(StoreModel):
                 rel=rel
             )
 
-        return self.generate_ref(uid=ref.uid)
+        return self.generate_ref(
+            uid=ref.uid,
+            state_model_name=ref.state_model_name
+        )
 
     def delete(self, ref: Ref) -> None:
         self._validate_method('DELETE')
@@ -277,9 +300,17 @@ class BaseStore(StoreModel):
         self._validate_method('GET')
         self._validate_ref(ref)
 
+        if ref.state_model_name == 'Any':
+            model_type = Any
+        else:
+            model_type = get_auto_resolve_model(model_name=ref.state_model_name)  
+
         return self.generate_ref(
             uid=ref.record.uid,
-            state=self.get_model_by_uid(ref.uid)
+            state=self.get_model_by_uid(
+                uid=ref.uid,
+                model_type=model_type
+            )
         )
 
     def query(self, query: Query) -> List[Ref]:

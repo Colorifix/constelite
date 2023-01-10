@@ -23,11 +23,16 @@ class DefaultSchema(TensorSchema):
 
 
 class Tensor(GenericModel, Generic[S]):
-    tensor_schema: Optional[S] = Field(export=False, default=DefaultSchema())
+    tensor_schema: Optional[S] = Field(exclude=True, default=DefaultSchema())
     data: List
     index: Optional[List[List]]
     index_names: Optional[List[str]]
     name: Optional[str]
+
+    @classmethod
+    @property
+    def pa_schema(cls):
+        return cls.__fields__['tensor_schema'].type_.pa_schema
 
     @staticmethod
     def _generate_series(index: List[List], data: List,
@@ -120,12 +125,11 @@ class Tensor(GenericModel, Generic[S]):
 
                 if name is None:
                     values['name'] = schema.pa_schema.name
-
                 series = cls._generate_series(
                     index=values['index'],
                     data=values['data'],
-                    index_names=index_names,
-                    name=name
+                    index_names=values['index_names'],
+                    name=values['name']
                 )
                 try:
                     schema.pa_schema.validate(series)

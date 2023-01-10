@@ -12,7 +12,6 @@ class StoreController(Controller):
     @post('/put')
     def put(self, data: PutRequest, state: State) -> Ref:
         ref = data.ref
-
         store = next(
             (
                 store for store in state['stores']

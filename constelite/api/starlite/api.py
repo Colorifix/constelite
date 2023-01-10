@@ -23,6 +23,7 @@ ControllerType = Literal['protocol', 'getter', 'setter']
 
 
 class StarliteAPI(ConsteliteAPI):
+    app: Optional[Starlite]
     # _method_tags = {
     #     'protocol': Tag(
     #         name='Protocols'
@@ -34,6 +35,23 @@ class StarliteAPI(ConsteliteAPI):
     #         name='Getters'
     #     )
     # }
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.app = Starlite(
+            route_handlers=[
+                # self.generate_controller('protocol'),
+                # self.generate_controller('getter'),
+                # self.generate_controller('setter'),
+                StoreController
+            ],
+            exception_handlers={
+            },
+            openapi_config=OpenAPIConfig(
+                title=self.name, version=self.version),
+            middleware=[self.create_store_middleware()]
+        )
+
     def create_store_middleware(api):
         class StoreMiddleware(MiddlewareProtocol):
             def __init__(self, app) -> None:

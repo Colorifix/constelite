@@ -46,7 +46,6 @@ class StarliteClient:
     def __getattr__(self, key):
         def wrapper(**kwargs):
             path = os.path.join(self.url, key)
-
             obj = RequestModel(**kwargs)
 
             ret = self._http.post(

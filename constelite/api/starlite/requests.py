@@ -11,8 +11,9 @@ from constelite.store import BaseStore
 def validate_state(ref: Ref) -> Ref:
     if ref.state is None:
         raise ValueError('Ref state is empty')
-
-    ref.state = resolve_model(values=ref.state)
+    ref = resolve_model(
+        values=ref.dict()
+    )
 
     return ref
 
@@ -40,6 +41,9 @@ class PutRequest(BaseModel):
     store: Optional[StoreModel]
 
     _validate_state = validator('ref', allow_reuse=True)(validate_state)
+
+    def __init__(self, **data):
+        super().__init__(**data)
 
     @root_validator
     def root(cls, values):

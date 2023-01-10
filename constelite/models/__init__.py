@@ -21,10 +21,11 @@ from constelite.models.inspector import (
     StateInspector, RelInspector, StaticTypes
 )
 
-from constelite.models.resolve import resolve_model
+from constelite.models.resolve import get_auto_resolve_model, resolve_model
 
 __all__ = [
     'AutoResolveBaseModel',
+    'get_auto_resolve_model',
     'resolve_model',
     'UID',
     'StoreModel',

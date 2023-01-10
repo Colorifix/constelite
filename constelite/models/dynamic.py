@@ -1,6 +1,7 @@
 import datetime
 
 from typing import TypeVar, Generic, List, Type
+from pydantic import validator
 from pydantic.generics import GenericModel
 
 import pandera as pa
@@ -21,6 +22,11 @@ class TimePoint(GenericModel, Generic[V]):
     def _point_type(cls) -> Type:
         return cls.__fields__['value'].type_
 
+    @validator('value')
+    def convert_value(cls, v):
+        if isinstance(v, dict) and cls._point_type != dict:
+            return cls._point_type(**v)
+        return v
 
 class Dynamic(GenericModel, Generic[V]):
     points: List[TimePoint[V]]

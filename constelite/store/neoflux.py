@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Type
 from uuid import uuid4
 
 import datetime
@@ -50,6 +50,7 @@ class NeofluxStore(BaseStore):
         self.graph = Graph(self.neo_config.url, auth=self.neo_config.auth)
         self.influx = InfluxDBClient(**self.influx_config.dict())
         self.influx.create_database("constelite")
+        self.influx.switch_database("constelite")
 
     def uid_exists(self, uid: UID) -> bool:
         return self.graph.nodes.match(
@@ -65,10 +66,10 @@ class NeofluxStore(BaseStore):
 
     def create_model(
             self,
-            model_cls: StateModel,
+            model_type: StateModel,
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
-        mro = getmro(model_cls)
+        mro = getmro(model_type)
         labels = []
 
         for cls in mro:
@@ -89,47 +90,74 @@ class NeofluxStore(BaseStore):
         tx.commit()
 
         for prop_name, prop in dynamic_props.items():
-            points = self.dynamic_to_influx(
+            self.write_dynamic_to_influx(
                 uid=uid,
-                model_cls_name=model_cls.__name__,
+                model_type_name=model_type.__name__,
                 prop_name=prop_name,
                 prop=prop
             )
 
-            self.influx.write_points(points)
-
         return uid
 
-    def dynamic_to_influx(
-        self, uid: UID, model_cls_name: str, prop_name: str, prop: Dynamic
+    def write_dynamic_to_influx(
+        self, uid: UID, model_type_name: str, prop_name: str, prop: Dynamic
     ):
         points = []
         for timepoint in prop.points:
-            fields = {
+            tags = {
                 UID_FIELD: uid
             }
             value = timepoint.value
 
+            time = datetime.datetime.fromtimestamp(
+                timepoint.timestamp
+            )
+
             if isinstance(value, Tensor):
-                pass
+                series = value.to_series().reset_index()
+                for idx, row in series.iterrows():
+                    fields = {
+                        f"{prop_name}": row[value.name]
+                    }
+                    tags = tags | {
+                        f"{prop_name}.{idx_name}": row[idx_name]
+                        for idx_name in value.index_names
+                    }
+                    points.append(
+                        {
+                            "time": time,
+                            "measurement": model_type_name,
+                            "fields": fields,
+                            "tags": tags
+                        }
+                    )
             else:
-                fields[prop_name] = value
+                fields = {
+                    prop_name: value
+                }
                 points.append(
                     {
-                        "time": datetime.datetime.fromtimestamp(
-                            timepoint.timestamp
-                        ),
-                        "measurement": model_cls_name,
-                        "fields": fields
+                        "time": time,
+                        "measurement": model_type_name,
+                        "fields": fields,
+                        "tags": tags
                     }
                 )
-        return points
+        self.influx.write_points(points)
 
     def delete_model(
             self,
+            model_type: Type[StateModel],
             uid: UID) -> None:
         node = self.get_node(uid=uid)
         self.graph.delete(node)
+
+        self.influx.delete_series(
+            measurement=model_type.__name__,
+            tags={
+                UID_FIELD: uid
+            }
+        )
 
     def overwrite_static_props(
             self,
@@ -142,14 +170,36 @@ class NeofluxStore(BaseStore):
     def overwrite_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
-        pass
+        for prop_name, prop in props.items():
+            self.influx.delete_series(
+                measurement=model_type.__name__,
+                tags={
+                    UID_FIELD: uid,
+                    "_field": prop_name
+                }
+            )
+            self.write_dynamic_to_influx(
+                uid=uid,
+                model_type_name=model_type.__name__,
+                prop_name=prop_name,
+                prop=prop
+            )
 
     def extend_dynamic_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
-        pass
+
+        for prop_name, prop in props.items():
+            self.write_dynamic_to_influx(
+                uid=uid,
+                model_type_name=model_type.__name__,
+                prop_name=prop_name,
+                prop=prop
+            )
 
     def delete_all_relationships(
             self,
@@ -190,6 +240,33 @@ class NeofluxStore(BaseStore):
             if not self.graph.exists(rel):
                 self.graph.create(rel)
 
-    def get_model_by_uid(self, uid: UID) -> StateModel:
+    def get_model_by_uid(
+            self,
+            uid: UID,
+            model_type: Type[StateModel]
+    ) -> StateModel:
         node = self.get_node(uid=uid)
+
+        for field_name, field in model_type.__fields__.items():
+            if issubclass(field.type_, Dynamic):
+                point_type = field.type_._point_type
+                if issubclass(point_type, Tensor):
+                    pa_schema = point_type.pa_schema
+                    index_names_string = ",".join(
+                        [
+                            f"{field_name}.{idx_name}"
+                            for idx_name in pa_schema.index.names
+                        ]
+                    )
+                    query = (
+                        f"SELECT {field_name},{index_names_string}"
+                        f" FROM {model_type.__name__}"
+                        f" WHERE {UID_FIELD}='{uid}'"
+                    )
+
+                    points = list(self.influx.query(query).get_points(
+                        measurement=model_type.__name__
+                    ))
+                    breakpoint()
+
         return resolve_model(values=dict(node))
