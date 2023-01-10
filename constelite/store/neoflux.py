@@ -2,6 +2,9 @@ from typing import Optional, Dict, List, Tuple, Type
 from uuid import uuid4
 
 import datetime
+from dateutil.parser import isoparse
+
+import pandas as pd
 
 from inspect import getmro
 
@@ -10,8 +13,8 @@ from pydantic import Field, BaseModel
 from constelite.store import BaseStore
 
 from constelite.models import (
-    Ref, StateModel, StaticTypes, Dynamic, UID,
-    RelInspector, resolve_model, Tensor
+    StateModel, StaticTypes, Dynamic, UID,
+    RelInspector, resolve_model, Tensor, TimePoint
 )
 
 from py2neo import Graph, Node, Relationship
@@ -247,6 +250,8 @@ class NeofluxStore(BaseStore):
     ) -> StateModel:
         node = self.get_node(uid=uid)
 
+        data = dict(node)
+
         for field_name, field in model_type.__fields__.items():
             if issubclass(field.type_, Dynamic):
                 point_type = field.type_._point_type
@@ -267,6 +272,27 @@ class NeofluxStore(BaseStore):
                     points = list(self.influx.query(query).get_points(
                         measurement=model_type.__name__
                     ))
-                    breakpoint()
 
-        return resolve_model(values=dict(node))
+                    time_groups = pd.DataFrame(data=points).groupby('time')
+                    timepoints = []
+                    breakpoint()
+                    for timestamp, time_group in time_groups:
+                        df = time_group.drop('time', axis=1)
+                        df.columns = df.columns.map(
+                            lambda x: x.split('.')[1] if '.' in x else x
+                        )
+                        df.set_index(pa_schema.index.names, inplace=True)
+
+                        timepoint = TimePoint(
+                            timestamp=int(isoparse(timestamp).timestamp()),
+                            value=point_type(
+                                data=list(df.to_numpy().flatten())
+                            )
+                        )
+
+                        timepoints.append(timepoint)
+                    data[field_name] = field.type_(
+                        points=timepoints
+                    )
+
+        return resolve_model(values=data)
