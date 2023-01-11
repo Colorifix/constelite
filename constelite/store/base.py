@@ -163,6 +163,16 @@ class BaseStore(StoreModel):
 
     def put(self, ref: Ref) -> Ref:
         self._validate_method('PUT')
+        # For put inside _update_relations when relationship is a
+        # reference to existing state
+        if ref.state is None:
+            if self.uid_exists(ref.uid):
+                return ref
+            else:
+                raise ValueError(
+                    "Can't put a reference without a state and unknow uid"
+                )
+
         inspector = StateInspector.from_state(ref.state)
 
         if ref.record is None:
@@ -299,6 +309,7 @@ class BaseStore(StoreModel):
     def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
         self._validate_ref(ref)
+        breakpoint()
 
         if ref.state_model_name == 'Any':
             model_type = Any

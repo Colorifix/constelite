@@ -14,7 +14,7 @@ from constelite.models.object import Object, ObjectGroup
 from constelite.models.tensor import TensorSchema, Tensor
 from constelite.models.dynamic import TimePoint, Dynamic
 from constelite.models.relationships import (
-    Relationship, Association, Aggregation, Composition, Backref
+    Relationship, Association, Aggregation, Composition, Backref, backref
 )
 
 from constelite.models.inspector import (
@@ -45,6 +45,7 @@ __all__ = [
     'Aggregation',
     'Composition',
     'Backref',
+    'backref',
     'StateInspector',
     'RelInspector',
     'StaticTypes'

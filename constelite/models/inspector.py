@@ -17,7 +17,7 @@ StaticTypes = Union[int, str, bool, BaseModel, float]
 M = TypeVar('Model')
 
 
-def type_name(model: Union[Type[StateModel], ForwardRef]):
+def type_name(model: Union[Type[StateModel], ForwardRef]) -> str:
     if isinstance(model, type):
         return model.__name__
     elif isinstance(model, ForwardRef):
@@ -37,17 +37,22 @@ class RelInspector(BaseModel):
             field: ModelField,
             to_refs: Optional[List[Ref]]):
 
+        if to_refs is None:
+            to_refs = []
         rel_type = field.type_
         rel_to_model = rel_type.model
-
         backref = next(
             (
                 f for f in rel_to_model.__fields__.values()
                 if (
-                    issubclass(f.type_, Relationship)
+                    issubclass(f.type_, Backref)
                     and (
                         type_name(f.type_.model)
                         == type_name(from_model_type)
+                    )
+                    and (
+                        f.field_info.extra.get('from_field', None)
+                        == field.name
                     )
                 )
             ),

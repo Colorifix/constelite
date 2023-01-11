@@ -1,6 +1,7 @@
-from typing import Generic, List, TypeVar
+from typing import Generic, List, TypeVar, ForwardRef, Optional
+from typing_extensions import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic.generics import GenericModel
 
 from constelite.models.model import StateModel
@@ -46,4 +47,14 @@ class Aggregation(Relationship, Generic[M]):
 
 
 class Backref(Relationship, Generic[M]):
-    pass
+    @classmethod
+    def validate(cls, v):
+        class DummyModel(BaseModel):
+            v: List[Ref]
+
+        dm = DummyModel(v=v)
+        return dm.v
+
+
+def backref(model: str, from_field: str):
+    return Annotated[Optional[Backref[ForwardRef(model)]], Field(from_field=from_field)]

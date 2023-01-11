@@ -14,7 +14,7 @@ from constelite.store import BaseStore
 
 from constelite.models import (
     StateModel, StaticTypes, Dynamic, UID,
-    RelInspector, resolve_model, Tensor, TimePoint
+    RelInspector, resolve_model, Tensor, TimePoint, Ref
 )
 
 from py2neo import Graph, Node, Relationship
@@ -67,6 +67,47 @@ class NeofluxStore(BaseStore):
                 **{UID_FIELD: uid}
             ).first()
 
+    def get_relations(self, node) -> Dict[str, Ref]:
+        rel_dict = {}
+        res = self.graph.run(
+            f"MATCH (n {{{UID_FIELD}:\"{node[UID_FIELD]}\"}})"
+            "-[r]->(m)"
+            f" RETURN r.from_field, m.{UID_FIELD}, m.model_name"
+        ).data()
+
+        for row in res:
+            from_field_name = row['r.from_field']
+
+            if from_field_name not in rel_dict:
+                rel_dict[from_field_name] = []
+            rel_dict[from_field_name].append(
+                self.generate_ref(
+                    uid=row[f"m.{UID_FIELD}"],
+                    state_model_name=row["m.model_name"]
+                )
+            )
+
+        res = self.graph.run(
+            "MATCH (m)"
+            f"-[r]->(n {{{UID_FIELD}:\"{node[UID_FIELD]}\"}})"
+            " WHERE EXISTS(r.to_field)"
+            f" RETURN r.to_field, m.{UID_FIELD}, m.model_name"
+        ).data()
+
+        for row in res:
+            to_field_name = row['r.to_field']
+
+            if to_field_name not in rel_dict:
+                rel_dict[to_field_name] = []
+            rel_dict[to_field_name].append(
+                self.generate_ref(
+                    uid=row[f"m.{UID_FIELD}"],
+                    state_model_name=row["m.model_name"]
+                )
+            )
+
+        return rel_dict
+
     def create_model(
             self,
             model_type: StateModel,
@@ -118,12 +159,12 @@ class NeofluxStore(BaseStore):
 
             if isinstance(value, Tensor):
                 series = value.to_series().reset_index()
-                for idx, row in series.iterrows():
+                for idx in range(len(series)):
                     fields = {
-                        f"{prop_name}": row[value.name]
+                        f"{prop_name}": series.iloc[idx:idx+1][value.name].iloc[0]
                     }
                     tags = tags | {
-                        f"{prop_name}.{idx_name}": row[idx_name]
+                        f"{prop_name}.{idx_name}": series.iloc[idx:idx+1][idx_name].iloc[0]
                         for idx_name in value.index_names
                     }
                     points.append(
@@ -147,6 +188,59 @@ class NeofluxStore(BaseStore):
                     }
                 )
         self.influx.write_points(points)
+
+    def influx_to_dynamic(
+            self,
+            uid: UID,
+            model_type: Type,
+            field_name: str,
+            point_type: Type,
+    ) -> Dynamic:
+        if issubclass(point_type, Tensor):
+            pa_schema = point_type.pa_schema
+
+            index_names_string = ",".join(
+                [
+                    f"{field_name}.{idx_name}"
+                    for idx_name in pa_schema.index.names
+                ]
+            )
+
+            query = (
+                f"SELECT {field_name},{index_names_string}"
+                f" FROM {model_type.__name__}"
+                f" WHERE {UID_FIELD}='{uid}'"
+            )
+
+            points = list(self.influx.query(query).get_points(
+                measurement=model_type.__name__
+            ))
+
+            df = pd.DataFrame(data=points)
+
+            df.columns = df.columns.map(
+                lambda x: x.split('.')[1] if '.' in x else x
+            )
+
+            for schema_idx in pa_schema.index.indexes:
+                df[schema_idx.name] = df[schema_idx.name].astype(
+                    pa_schema.index.indexes[0].dtype.type
+                )
+
+            df.set_index(pa_schema.index.names, inplace=True)
+
+            time_groups = df.groupby('time')
+            timepoints = []
+
+            for timestamp, time_group in time_groups:
+                df = time_group.drop('time', axis=1)
+                timepoint = TimePoint(
+                    timestamp=int(isoparse(timestamp).timestamp()),
+                    value=point_type.from_series(df[field_name])
+                )
+
+                timepoints.append(timepoint)
+            return Dynamic[point_type](points=timepoints)
 
     def delete_model(
             self,
@@ -219,13 +313,11 @@ class NeofluxStore(BaseStore):
 
     def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
         node = self.get_node(uid=from_uid)
-
         new_to_refs = (
             inspector.to_refs
             if inspector.to_refs is not None
             else []
         )
-
         for to_ref in new_to_refs:
             to_node = self.get_node(uid=to_ref.uid)
             rel_props = {
@@ -249,50 +341,17 @@ class NeofluxStore(BaseStore):
             model_type: Type[StateModel]
     ) -> StateModel:
         node = self.get_node(uid=uid)
-
-        data = dict(node)
+        rels = self.get_relations(node=node)
+        data = dict(node) | rels
 
         for field_name, field in model_type.__fields__.items():
             if issubclass(field.type_, Dynamic):
                 point_type = field.type_._point_type
-                if issubclass(point_type, Tensor):
-                    pa_schema = point_type.pa_schema
-                    index_names_string = ",".join(
-                        [
-                            f"{field_name}.{idx_name}"
-                            for idx_name in pa_schema.index.names
-                        ]
-                    )
-                    query = (
-                        f"SELECT {field_name},{index_names_string}"
-                        f" FROM {model_type.__name__}"
-                        f" WHERE {UID_FIELD}='{uid}'"
-                    )
-
-                    points = list(self.influx.query(query).get_points(
-                        measurement=model_type.__name__
-                    ))
-
-                    time_groups = pd.DataFrame(data=points).groupby('time')
-                    timepoints = []
-                    breakpoint()
-                    for timestamp, time_group in time_groups:
-                        df = time_group.drop('time', axis=1)
-                        df.columns = df.columns.map(
-                            lambda x: x.split('.')[1] if '.' in x else x
-                        )
-                        df.set_index(pa_schema.index.names, inplace=True)
-
-                        timepoint = TimePoint(
-                            timestamp=int(isoparse(timestamp).timestamp()),
-                            value=point_type(
-                                data=list(df.to_numpy().flatten())
-                            )
-                        )
-
-                        timepoints.append(timepoint)
-                    data[field_name] = field.type_(
-                        points=timepoints
-                    )
+                data[field_name] = self.influx_to_dynamic(
+                    uid=uid,
+                    model_type=model_type,
+                    field_name=field_name,
+                    point_type=point_type,
+                )
 
         return resolve_model(values=data)

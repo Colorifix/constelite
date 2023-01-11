@@ -114,7 +114,6 @@ class Tensor(GenericModel, Generic[S]):
 
     @root_validator
     def validate(cls, values):
-        breakpoint()
         if isinstance(values, dict):
             schema = values.get('tensor_schema', None)
             if schema is not None:
@@ -142,10 +141,17 @@ class Tensor(GenericModel, Generic[S]):
     @classmethod
     def from_series(cls, series: pd.Series):
         pa_schema = cls.pa_schema
-        if pa_schema is not None:
-            series.index.set_names(pa_schema.index.names, inplace=True)
-            series.rename(pa_schema.name, inplace=True)
-            pa_schema.validate(series)
+
+        series.rename(pa_schema.name, inplace=True)
+
+        df = series.reset_index()
+        df.set_index(pa_schema.index.names, inplace=True)
+
+        if not isinstance(df.index, pd.MultiIndex):
+            df.index = pd.MultiIndex.from_product([df.index])
+
+        series = df[pa_schema.name]
+        pa_schema.validate(series)
 
         index = [
             list(level) for level in
