@@ -2,7 +2,7 @@ import os
 import importlib
 import inspect
 
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Type
 from pydantic import UUID4, BaseModel
 
 from constelite.store import BaseStore
@@ -96,4 +96,5 @@ class ProtocolModel(BaseModel):
     path: Optional[str]
     name: Optional[str]
     fn: Callable
+    fn_model: Type
     slug: str
