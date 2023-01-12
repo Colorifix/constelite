@@ -1,22 +1,24 @@
 from typing import List, Optional
-
 from inspect import signature, Parameter
+import re
 
-from pydantic import validate_arguments, create_model
+from pydantic import BaseModel, validate_arguments, create_model
 
-from constelite import ProtocolAPIModel, get_store
+from constelite.api import ProtocolModel
 
 from loguru import logger
+
+from functools import wraps
 
 
 class protocol:
     """Decorator for protocols
     """
-    __protocols: List[ProtocolAPIModel] = []
+    __protocols: List[ProtocolModel] = []
 
     @classmethod
     @property
-    def protocols(cls) -> List[ProtocolAPIModel]:
+    def protocols(cls) -> List[ProtocolModel]:
         return cls.__protocols
 
     def __init__(self, name):
@@ -58,28 +60,72 @@ class protocol:
 
             model = self._generate_model(fn)
 
-            def wrapper(**kwargs) -> ret_model:
-                to_store = kwargs.pop('store')
+            # def wrapper(**kwargs) -> ret_model:
+            #     to_store = kwargs.pop('store')
 
-                ret = validate_arguments(fn)(**kwargs)
+            #     ret = validate_arguments(fn)(**kwargs)
 
-                if to_store is True:
-                    store = get_store()
-                    return store.store(ret)
-                else:
-                    return ret
+            #     if to_store is True:
+            #         store = get_store()
+            #         return store.store(ret)
+            #     else:
+            #         return ret
 
-            path = fn.__name__
-            wrapper.__name__ = path
+            # path = fn.__name__
+            # wrapper.__name__ = path
 
-            self.__protocols.append(
-                ProtocolAPIModel(
-                    name=self.name,
-                    fn=wrapper,
-                    ret_model=ret_model,
-                    fn_model=model,
-                    path=path
-                )
+            @wraps(
+                fn,
+                assigned=[
+                    '__module__',
+                    '__name__',
+                    '__qualname__',
+                    '__doc__'
+                ]
+            )
+            def wrapper(data: model) -> ret_model:
+                return fn(**data)
+
+            fn._protocol_model = ProtocolModel(
+                name=self.name,
+                fn=wrapper,
+                slug=fn.__name__
+                # ret_model=ret_model,
+                # fn_model=model,
+                # path=path
             )
 
+            # self.__protocols.append(
+            #     ProtocolModel(
+            #         name=self.name,
+            #         fn=wrapper,
+            #         ret_model=ret_model,
+            #         fn_model=model,
+            #         path=path
+            #     )
+            # )
+
             return validate_arguments(fn)
+
+
+class Protocol(BaseModel):
+    _name: Optional[str]
+
+    @classmethod
+    def get_slug(cls):
+        pattern = re.compile(r'(?<!^)(?=[A-Z])')
+        name = pattern.sub('_', cls.__name__).lower()
+        return name
+
+    @classmethod
+    def get_model(cls):
+        ret_type_hint = cls.run.__annotations__.get('return', None)
+
+        def wrapper(data: cls) -> ret_type_hint:
+            return data.run()
+
+        return ProtocolModel(
+            name=cls.getattr('_name', None) or cls.__name__,
+            fn=wrapper,
+            slug=cls.get_slug()
+        )
