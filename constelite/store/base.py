@@ -309,7 +309,6 @@ class BaseStore(StoreModel):
     def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
         self._validate_ref(ref)
-        breakpoint()
 
         if ref.state_model_name == 'Any':
             model_type = Any

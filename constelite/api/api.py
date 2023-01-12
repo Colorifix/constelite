@@ -11,6 +11,19 @@ from constelite.store import BaseStore
 class ConsteliteAPI:
     """Base class for API implementations
     """
+    __instance = None
+
+    def __new__(cls, *args, **kwargs):
+        new = super().__new__(cls)
+        if ConsteliteAPI.__instance is None:
+            ConsteliteAPI.__instance = new
+        return new
+
+    @classmethod
+    @property
+    def api(cls):
+        return cls.__instance
+
     def __init__(
         self,
         name: str,

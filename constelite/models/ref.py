@@ -44,6 +44,34 @@ class Ref(GenericModel, Generic[M]):
             state=None
         )
 
+    def get_state(self, cache=True):
+        if self.state is not None:
+            state = self.state
+        else:
+            if self.record is not None:
+
+                from constelite.api import ConsteliteAPI
+
+                api = ConsteliteAPI.api
+
+                store = next(
+                    (store for store in api.stores if store.uid == self.uid),
+                    None
+                )
+
+                if store is None:
+                    raise ValueError(
+                        "Environment api does not have"
+                        f"a {self.record.store.name} store("
+                        f"{self.record.store.uid})"
+                    )
+
+                state = store.get(self).state
+                if cache is True:
+                    self.state = state
+
+        return state
+
 
 def ref(model: StateModel, guid: Optional[UUID4] = None):
     return Ref(

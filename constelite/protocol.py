@@ -83,7 +83,7 @@ class protocol:
                     '__doc__'
                 ]
             )
-            def wrapper(data: model) -> ret_model:
+            def wrapper(self, data: model) -> ret_model:
                 return fn(**data)
 
             fn._protocol_model = ProtocolModel(
@@ -121,7 +121,7 @@ class Protocol(BaseModel):
     def get_model(cls):
         ret_type_hint = cls.run.__annotations__.get('return', None)
 
-        def wrapper(data: cls) -> ret_type_hint:
+        def wrapper(self, data: cls) -> ret_type_hint:
             return data.run()
 
         return ProtocolModel(

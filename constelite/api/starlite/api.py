@@ -17,7 +17,9 @@ import uvicorn
 
 from loguru import logger
 
-from constelite.api.starlite.controllers import StoreController
+from constelite.api.starlite.controllers import (
+        StoreController, protocol_controller
+)
 
 ControllerType = Literal['protocol', 'getter', 'setter']
 
@@ -70,6 +72,7 @@ class StarliteAPI(ConsteliteAPI):
                 # self.generate_controller('protocol'),
                 # self.generate_controller('getter'),
                 # self.generate_controller('setter'),
+                protocol_controller(self),
                 StoreController
             ],
             exception_handlers={
