@@ -4,6 +4,7 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import ModelField
 
+from constelite.utils import resolve_forward_ref
 from constelite.models.model import StateModel
 from constelite.models.ref import Ref
 from constelite.models.relationships import (
@@ -11,7 +12,10 @@ from constelite.models.relationships import (
 )
 from constelite.models.dynamic import Dynamic
 
-StaticTypes = Union[int, str, bool, BaseModel, float]
+StaticTypes = Union[
+    float, int, str, bool, BaseModel,
+    List[Union[int, str, bool, float]]
+]
 
 
 M = TypeVar('Model')
@@ -29,6 +33,7 @@ class RelInspector(BaseModel):
     to_field_name: Optional[str] = ...
     to_refs: Optional[List[Ref]]
     rel_type: Literal['Association', 'Composition', 'Aggregation']
+    to_model: Type[StateModel]
 
     @classmethod
     def from_field(
@@ -41,6 +46,12 @@ class RelInspector(BaseModel):
             to_refs = []
         rel_type = field.type_
         rel_to_model = rel_type.model
+        if isinstance(rel_to_model, ForwardRef):
+            rel_to_model = resolve_forward_ref(rel_to_model, StateModel)
+            if rel_to_model is None:
+                raise ValueError(
+                    "Can't find a StateModel matching {rel_type.model}"
+                )
         backref = next(
             (
                 f for f in rel_to_model.__fields__.values()
@@ -63,7 +74,8 @@ class RelInspector(BaseModel):
             from_field_name=field.name,
             to_field_name=backref.name if backref is not None else None,
             to_refs=to_refs,
-            rel_type=type_name(rel_type).split('[')[0]
+            rel_type=type_name(rel_type).split('[')[0],
+            to_model=rel_to_model
         )
 
 
@@ -88,6 +100,8 @@ class StateInspector(BaseModel):
 
         for field_name, field in model.__class__.__fields__.items():
             value = getattr(model, field_name)
+            if value is None:
+                continue
             if issubclass(field.type_, Backref):
                 pass
             elif issubclass(field.type_, Dynamic):

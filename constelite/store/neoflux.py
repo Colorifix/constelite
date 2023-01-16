@@ -1,6 +1,8 @@
 from typing import Optional, Dict, List, Tuple, Type
 from uuid import uuid4
 
+import json
+
 import datetime
 from dateutil.parser import isoparse
 
@@ -127,11 +129,15 @@ class NeofluxStore(BaseStore):
 
         static_props[UID_FIELD] = uid
 
+        for prop_name, prop in static_props.items():
+            if isinstance(prop, BaseModel):
+                static_props[prop_name] = prop.json()
+
         node = Node(*labels, **static_props)
 
         tx = self.graph.begin()
         tx.create(node)
-        tx.commit()
+        self.graph.commit(tx)
 
         for prop_name, prop in dynamic_props.items():
             self.write_dynamic_to_influx(
@@ -146,6 +152,9 @@ class NeofluxStore(BaseStore):
     def write_dynamic_to_influx(
         self, uid: UID, model_type_name: str, prop_name: str, prop: Dynamic
     ):
+        if prop is None:
+            return
+
         points = []
         for timepoint in prop.points:
             tags = {
@@ -153,7 +162,7 @@ class NeofluxStore(BaseStore):
             }
             value = timepoint.value
 
-            time = datetime.datetime.fromtimestamp(
+            time = datetime.datetime.utcfromtimestamp(
                 timepoint.timestamp
             )
 
@@ -216,31 +225,55 @@ class NeofluxStore(BaseStore):
                 measurement=model_type.__name__
             ))
 
-            df = pd.DataFrame(data=points)
+            if len(points) == 0:
+                return None
+            else:
+                df = pd.DataFrame(data=points)
 
-            df.columns = df.columns.map(
-                lambda x: x.split('.')[1] if '.' in x else x
+                df.columns = df.columns.map(
+                    lambda x: x.split('.')[1] if '.' in x else x
+                )
+
+                for schema_idx in pa_schema.index.indexes:
+                    df[schema_idx.name] = df[schema_idx.name].astype(
+                        pa_schema.index.indexes[0].dtype.type
+                    )
+
+                df.set_index(pa_schema.index.names, inplace=True)
+
+                time_groups = df.groupby('time')
+                timepoints = []
+
+                for timestamp, time_group in time_groups:
+                    df = time_group.drop('time', axis=1)
+                    timepoint = TimePoint(
+                        timestamp=int(isoparse(timestamp).timestamp()),
+                        value=point_type.from_series(df[field_name])
+                    )
+
+                    timepoints.append(timepoint)
+        else:
+            query = (
+                f"SELECT {field_name} FROM {model_type.__name__}"
+                f" WHERE {UID_FIELD}='{uid}'"
             )
 
-            for schema_idx in pa_schema.index.indexes:
-                df[schema_idx.name] = df[schema_idx.name].astype(
-                    pa_schema.index.indexes[0].dtype.type
+            points = list(self.influx.query(query).get_points(
+                measurement=model_type.__name__
+            ))
+
+            if len(points) == 0:
+                return None
+
+            timepoints = [
+                TimePoint(
+                    timestamp=int(isoparse(point['time']).timestamp()),
+                    value=point_type(point[field_name])
                 )
+                for point in points
+            ]
 
-            df.set_index(pa_schema.index.names, inplace=True)
-
-            time_groups = df.groupby('time')
-            timepoints = []
-
-            for timestamp, time_group in time_groups:
-                df = time_group.drop('time', axis=1)
-                timepoint = TimePoint(
-                    timestamp=int(isoparse(timestamp).timestamp()),
-                    value=point_type.from_series(df[field_name])
-                )
-
-                timepoints.append(timepoint)
-            return Dynamic[point_type](points=timepoints)
+        return Dynamic[point_type](points=timepoints)
 
     def delete_model(
             self,
@@ -259,8 +292,14 @@ class NeofluxStore(BaseStore):
     def overwrite_static_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, StaticTypes]) -> None:
         node = self.get_node(uid=uid)
+
+        for prop_name, prop in props.items():
+            if isinstance(prop, BaseModel):
+                props[prop_name] = prop.json()
+
         node.update(props)
         self.graph.push(node)
 
@@ -301,6 +340,7 @@ class NeofluxStore(BaseStore):
     def delete_all_relationships(
             self,
             from_uid: UID,
+            from_model_type: Type[StateModel],
             rel_from_name: str) -> List[UID]:
 
         ret = self.graph.run(
@@ -342,7 +382,7 @@ class NeofluxStore(BaseStore):
     ) -> StateModel:
         node = self.get_node(uid=uid)
         rels = self.get_relations(node=node)
-        data = dict(node) | rels
+        data = dict(node)
 
         for field_name, field in model_type.__fields__.items():
             if issubclass(field.type_, Dynamic):
@@ -353,5 +393,14 @@ class NeofluxStore(BaseStore):
                     field_name=field_name,
                     point_type=point_type,
                 )
+            elif (
+                    issubclass(field.type_, BaseModel)
+                    and field_name in data
+            ):
+                json_str = data[field_name]
+                if json_str is not None:
+                    data[field_name] = field.type_(
+                        **json.loads(node[field_name])
+                    )
 
-        return resolve_model(values=data)
+        return resolve_model(values=data | rels)

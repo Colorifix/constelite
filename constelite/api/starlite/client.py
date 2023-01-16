@@ -27,40 +27,56 @@ class StarliteClient:
 
         self._http.mount("https://", adapter)
 
-    @property
-    def getter(self):
-        return StarliteClient(url=os.path.join(self.url, 'getter'))
-
-    @property
-    def protocol(self):
-        return StarliteClient(url=os.path.join(self.url, 'protocol'))
-
-    @property
-    def setter(self):
-        return StarliteClient(url=os.path.join(self.url, 'setter'))
-
-    @property
-    def store(self):
-        return StarliteClient(url=os.path.join(self.url, 'store'))
-
     def __getattr__(self, key):
-        def wrapper(**kwargs):
-            path = os.path.join(self.url, key)
-            obj = RequestModel(**kwargs)
+        return StarliteClient(url=os.path.join(self.url, key))
 
-            ret = self._http.post(
-                path,
-                data=obj.json()
-            )
+    def __call__(self, **kwargs):
+        obj = RequestModel(**kwargs)
 
-            if ret.status_code == 201:
-                if ret.text != '':
-                    data = ret.json()
-                    return resolve_model(values=data)
-                    # ref = data.pop('ref', None)
-                    # if ref is not None:
-                    #     return Ref(ref=ref)
-                    # return StateModel.resolve(values=data)
-            else:
-                raise Exception(f"Failed to call remote method\n {ret.text}")
-        return wrapper
+        ret = self._http.post(
+            self.url,
+            data=obj.json()
+        )
+
+        if ret.status_code == 201:
+            if ret.text != '':
+                data = ret.json()
+                return resolve_model(values=data)
+
+    # @property
+    # def getter(self):
+    #     return StarliteClient(url=os.path.join(self.url, 'getter'))
+
+    # @property
+    # def protocols(self):
+    #     return StarliteClient(url=os.path.join(self.url, 'protocol'))
+
+    # @property
+    # def setter(self):
+    #     return StarliteClient(url=os.path.join(self.url, 'setter'))
+
+    # @property
+    # def store(self):
+    #     return StarliteClient(url=os.path.join(self.url, 'store'))
+
+    # def __getattr__(self, key):
+    #     def wrapper(**kwargs):
+    #         path = os.path.join(self.url, key)
+    #         obj = RequestModel(**kwargs)
+
+    #         ret = self._http.post(
+    #             path,
+    #             data=obj.json()
+    #         )
+
+    #         if ret.status_code == 201:
+    #             if ret.text != '':
+    #                 data = ret.json()
+    #                 return resolve_model(values=data)
+    #                 # ref = data.pop('ref', None)
+    #                 # if ref is not None:
+    #                 #     return Ref(ref=ref)
+    #                 # return StateModel.resolve(values=data)
+    #         else:
+    #             raise Exception(f"Failed to call remote method\n {ret.text}")
+    #     return wrapper

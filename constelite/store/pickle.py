@@ -10,7 +10,7 @@ from pydantic import Field
 
 from constelite.models import (
     StateModel, UID, TimePoint, Dynamic,
-    StaticTypes, RelInspector
+    StaticTypes, RelInspector, resolve_model
 )
 
 from constelite.store import (
@@ -41,7 +41,9 @@ class PickleStore(BaseStore):
         else:
             path = os.path.join(self.path, uid)
             with open(path, 'rb') as f:
-                return pickle.load(f)
+                return resolve_model(
+                    values=pickle.load(f)
+                )
 
     def store(self, uid: UID, model: StateModel) -> UID:
         path = os.path.join(self.path, uid)
@@ -50,7 +52,7 @@ class PickleStore(BaseStore):
 
         with open(path, 'wb') as f:
             try:
-                pickle.dump(model, f)
+                pickle.dump(model.dict(), f)
             except Exception as e:
                 exception = e
 
@@ -65,7 +67,6 @@ class PickleStore(BaseStore):
             model_type: StateModel,
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
-
         model = model_type(
             **(static_props | dynamic_props)
         )
@@ -84,9 +85,13 @@ class PickleStore(BaseStore):
     def overwrite_static_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, StaticTypes]) -> None:
 
-        model = self.get_model_by_uid(uid=uid)
+        model = self.get_model_by_uid(
+            uid=uid,
+            model_type=model_type
+        )
         data = model.dict()
         data.update(props)
 
@@ -101,12 +106,14 @@ class PickleStore(BaseStore):
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, List[TimePoint]]) -> None:
-
-        model = self.get_model_by_uid(uid=uid)
+        model = self.get_model_by_uid(
+            uid=uid,
+            model_type=model_type
+        )
         data = model.dict()
         data.update(props)
 
-        new_model = self.model.__class__(
+        new_model = model.__class__(
             **data
         )
         self.store(uid=uid, model=new_model)
@@ -116,7 +123,10 @@ class PickleStore(BaseStore):
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
-        model = self.get_model_by_uid(uid=uid)
+        model = self.get_model_by_uid(
+            uid=uid,
+            model_type=model_type
+        )
 
         for prop_name, prop in props.items():
             points = getattr(
@@ -136,10 +146,14 @@ class PickleStore(BaseStore):
     def delete_all_relationships(
             self,
             from_uid: UID,
+            from_model_type: Type[StateModel],
             rel_from_name: str,
             ) -> List[UID]:
 
-        model = self.get_model_by_uid(uid=from_uid)
+        model = self.get_model_by_uid(
+            uid=from_uid,
+            model_type=from_model_type
+        )
 
         orphan_refs = getattr(model, rel_from_name, [])
         setattr(model, rel_from_name, [])
@@ -149,7 +163,10 @@ class PickleStore(BaseStore):
         return [orphan_ref.record.uid for orphan_ref in orphan_refs]
 
     def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
-        from_model = self.get_model_by_uid(uid=from_uid)
+        from_model = self.get_model_by_uid(
+            uid=from_uid,
+            model_type=inspector.to_model
+        )
 
         to_refs = getattr(from_model, inspector.from_field_name, [])
         if to_refs is None:

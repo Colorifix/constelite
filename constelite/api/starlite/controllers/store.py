@@ -1,3 +1,4 @@
+from typing import Any
 from starlite import Controller, post, State
 
 from constelite.models import StateModel, Ref, resolve_model
@@ -10,14 +11,9 @@ class StoreController(Controller):
     path = '/store'
 
     @post('/put')
-    def put(self, data: PutRequest, state: State) -> Ref:
+    def put(self, data: PutRequest, api: Any) -> Ref:
         ref = data.ref
-        store = next(
-            (
-                store for store in state['stores']
-                if store.uid == data.store.uid),
-            None
-        )
+        store = api.get_store(data.store.uid)
 
         if store is None:
             raise ValueError("Store not found")
@@ -25,20 +21,20 @@ class StoreController(Controller):
         return store.put(ref)
 
     @post('/patch')
-    def patch(self, data: PatchRequest, state: State) -> Ref:
+    def patch(self, data: PatchRequest, api: Any) -> Ref:
         ref = data.ref
 
-        store = data.get_store(state=state)
+        store = api.get_store(ref.record.store.uid)
 
         if store is None:
             raise ValueError("Store not found")
         return store.patch(ref)
 
     @post('/get')
-    def get(self, data: GetRequest, state: State) -> StateModel:
+    def get(self, data: GetRequest, api: Any) -> StateModel:
         ref = data.ref
 
-        store = data.get_store(state=state)
+        store = api.get_store(ref.record.store.uid)
 
         if store is None:
             raise ValueError("Store not found")
@@ -46,10 +42,10 @@ class StoreController(Controller):
         return store.get(ref)
 
     @post('/delete')
-    def delete(self, data: DeleteRequest, state: State) -> None:
+    def delete(self, data: DeleteRequest, api: Any) -> None:
         ref = data.ref
 
-        store = data.get_store(state=state)
+        store = api.get_store(ref.record.store.uid)
 
         if store is None:
             raise ValueError("Store not found")

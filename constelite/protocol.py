@@ -8,8 +8,6 @@ from constelite.api import ProtocolModel
 
 from loguru import logger
 
-from functools import wraps
-
 
 class protocol:
     """Decorator for protocols
@@ -40,6 +38,8 @@ class protocol:
             for param_name, param in signature(fn)._parameters.items()
         }
 
+        fields.pop('api')
+
         return create_model(fn.__name__, **fields)
 
     def __call__(self, fn):
@@ -58,57 +58,13 @@ class protocol:
 
             model = self._generate_model(fn)
 
-            # def wrapper(**kwargs) -> ret_model:
-            #     to_store = kwargs.pop('store')
-
-            #     ret = validate_arguments(fn)(**kwargs)
-
-            #     if to_store is True:
-            #         store = get_store()
-            #         return store.store(ret)
-            #     else:
-            #         return ret
-
-            # path = fn.__name__
-            # wrapper.__name__ = path
-
-            # @wraps(
-            #     fn,
-            #     assigned=[
-            #         '__module__',
-            #         '__name__',
-            #         '__doc__'
-            #     ]
-            # )
-            def wrapper(self, data: model) -> ret_model:
-                args = {
-                    field_name: getattr(data, field_name, None)
-                    for field_name in data.__fields__.keys()
-                }
-                return fn(**args)
-
-            wrapper.__name__ = fn.__name__
-            wrapper.__module__ = fn.__module__
-            wrapper.__doc__ = fn.__doc__
-
             fn._protocol_model = ProtocolModel(
                 name=self.name,
-                fn=wrapper,
+                fn=fn,
                 slug=fn.__name__,
-                # ret_model=ret_model,
+                ret_model=ret_model,
                 fn_model=model,
-                # path=path
             )
-
-            # self.__protocols.append(
-            #     ProtocolModel(
-            #         name=self.name,
-            #         fn=wrapper,
-            #         ret_model=ret_model,
-            #         fn_model=model,
-            #         path=path
-            #     )
-            # )
 
             return validate_arguments(fn)
 

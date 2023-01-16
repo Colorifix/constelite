@@ -27,14 +27,6 @@ class RefRequest(BaseModel):
             raise ValueError("Reference has an empy record")
         return value
 
-    def get_store(self, state: State) -> BaseStore:
-        return next(
-            (
-                store for store in state['stores']
-                if store.uid == self.ref.record.store.uid),
-            None
-        )
-
 
 class PutRequest(BaseModel):
     ref: Ref

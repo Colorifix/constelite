@@ -4,6 +4,7 @@ from typing import (
 
 from pydantic import BaseModel, root_validator
 
+from constelite.utils import all_subclasses
 
 from constelite.models import (
     StateModel, Ref,
@@ -63,6 +64,7 @@ class BaseStore(StoreModel):
     def overwrite_static_props(
             self,
             uid: UID,
+            model_type: Type[StateModel],
             props: Dict[str, StaticTypes]) -> None:
         raise NotImplementedError
 
@@ -83,6 +85,7 @@ class BaseStore(StoreModel):
     def delete_all_relationships(
             self,
             from_uid: UID,
+            from_model_type: Type[StateModel],
             rel_from_name: str) -> List[UID]:
         raise NotImplementedError
 
@@ -107,7 +110,7 @@ class BaseStore(StoreModel):
     ):
         return Ref(
             record=StoreRecordModel(
-                store=self,
+                store=self.dict(),
                 uid=uid
             ),
             state=state,
@@ -134,6 +137,7 @@ class BaseStore(StoreModel):
             self,
             method: Callable,
             from_uid: UID,
+            from_model_type: Type[StateModel],
             field_name: str, rel: RelInspector,
             overwrite: bool = False,
             delete_orphans: bool = False):
@@ -141,12 +145,16 @@ class BaseStore(StoreModel):
         if overwrite is True:
             orphans = self.delete_all_relationships(
                 from_uid=from_uid,
+                from_model_type=from_model_type,
                 rel_from_name=field_name
             )
 
             if delete_orphans is True:
                 for orphan_uid in orphans:
-                    self.delete_model(uid=orphan_uid)
+                    self.delete_model(
+                        uid=orphan_uid,
+                        model_type=from_model_type
+                    )
 
         to_objs_refs = []
 
@@ -189,6 +197,7 @@ class BaseStore(StoreModel):
                 self._update_relationships(
                     method=self.put,
                     from_uid=uid,
+                    from_model_type=inspector.model_type,
                     field_name=field_name,
                     rel=rel
                 )
@@ -202,6 +211,7 @@ class BaseStore(StoreModel):
             self._validate_ref(ref)
             self.overwrite_static_props(
                 uid=ref.uid,
+                model_type=inspector.model_type,
                 props=inspector.static_props
             )
             self.overwrite_dynamic_props(
@@ -213,7 +223,8 @@ class BaseStore(StoreModel):
                     inspector.associations | inspector.aggregations).items():
                 self._update_relationships(
                     method=self.put,
-                    from_uid=uid,
+                    from_uid=ref.uid,
+                    from_model_type=inspector.model_type,
                     field_name=field_name,
                     rel=rel,
                     overwrite=True,
@@ -223,7 +234,8 @@ class BaseStore(StoreModel):
             for field_name, rel in inspector.compositions.items():
                 self._update_relationships(
                     method=self.put,
-                    from_uid=uid,
+                    from_uid=ref.uid,
+                    from_model_type=inspector.model_type,
                     field_name=field_name,
                     rel=rel,
                     overwrite=True,
@@ -247,11 +259,13 @@ class BaseStore(StoreModel):
 
         self.overwrite_static_props(
             uid=ref.uid,
+            model_type=inspector.model_type,
             props=inspector.static_props
         )
 
         self.extend_dynamic_props(
             uid=ref.uid,
+            model_type=inspector.model_type,
             props=inspector.dynamic_props
         )
 
@@ -259,6 +273,7 @@ class BaseStore(StoreModel):
             self._update_relationships(
                 method=self.patch,
                 from_uid=ref.uid,
+                from_model_type=inspector.model_type,
                 field_name=field_name,
                 rel=rel,
                 overwrite=True,
@@ -270,6 +285,7 @@ class BaseStore(StoreModel):
             self._update_relationships(
                 method=self.patch,
                 from_uid=ref.uid,
+                from_model_type=inspector.model_type,
                 field_name=field_name,
                 rel=rel
             )
@@ -284,7 +300,23 @@ class BaseStore(StoreModel):
 
         self._validate_ref(ref=ref)
 
-        state = self.get_model_by_uid(uid=ref.uid)
+        model_type = next(
+            (
+                cls for cls in all_subclasses(StateModel)
+                if cls.__name__ == ref.state_model_name
+            ),
+            None
+        )
+
+        if model_type is None:
+            raise ValueError(
+                "Unknown state model name '{ref.state_model_name}'"
+            )
+
+        state = self.get_model_by_uid(
+            uid=ref.uid,
+            model_type=model_type
+        )
 
         inspector = StateInspector.from_state(state)
 
@@ -298,13 +330,20 @@ class BaseStore(StoreModel):
         for field_name, rel in inspector.compositions.items():
             orphan_models = self.delete_all_relationships(
                 from_uid=ref.uid,
+                from_model_type=model_type,
                 rel_from_name=field_name
             )
 
             for orphan_uid in orphan_models:
-                self.delete_model(uid=orphan_uid)
+                self.delete_model(
+                    uid=orphan_uid,
+                    model_type=rel.to_model
+                )
 
-        self.delete_model(uid=ref.uid)
+        self.delete_model(
+            uid=ref.uid,
+            model_type=model_type
+        )
 
     def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')

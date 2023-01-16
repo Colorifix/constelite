@@ -28,6 +28,7 @@ class TimePoint(GenericModel, Generic[V]):
             return cls._point_type(**v)
         return v
 
+
 class Dynamic(GenericModel, Generic[V]):
     points: List[TimePoint[V]]
 

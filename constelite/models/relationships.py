@@ -4,6 +4,8 @@ from typing_extensions import Annotated
 from pydantic import BaseModel, Field
 from pydantic.generics import GenericModel
 
+from constelite.utils import resolve_forward_ref
+
 from constelite.models.model import StateModel
 from constelite.models.ref import Ref
 
@@ -25,9 +27,14 @@ class Relationship(GenericModel, Generic[M]):
     @classmethod
     def validate(cls, v):
         MT = cls.__fields__['model_type'].type_
+        if isinstance(MT, ForwardRef):
+            MT = resolve_forward_ref(MT, StateModel)
 
         class DummyModel(BaseModel):
             v: List[Ref]
+
+        if v is None:
+            v = []
 
         dm = DummyModel(v=v)
         assert issubclass(MT, StateModel)

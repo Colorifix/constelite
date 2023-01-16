@@ -4,8 +4,7 @@ from pydantic import BaseModel, root_validator, validator
 
 from typing import Literal, Optional
 
-from starlite import Controller, Starlite, OpenAPIConfig, MiddlewareProtocol, State
-from starlite import post
+from starlite import Provide, Starlite, OpenAPIConfig, MiddlewareProtocol, State
 
 from openapi_schema_pydantic import Tag
 
@@ -38,22 +37,6 @@ class StarliteAPI(ConsteliteAPI):
     #     )
     # }
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.app = Starlite(
-            route_handlers=[
-                # self.generate_controller('protocol'),
-                # self.generate_controller('getter'),
-                # self.generate_controller('setter'),
-                StoreController
-            ],
-            exception_handlers={
-            },
-            openapi_config=OpenAPIConfig(
-                title=self.name, version=self.version),
-            middleware=[self.create_store_middleware()]
-        )
-
     def create_store_middleware(api):
         class StoreMiddleware(MiddlewareProtocol):
             def __init__(self, app) -> None:
@@ -66,19 +49,23 @@ class StarliteAPI(ConsteliteAPI):
                 await self.app(scope, receive, send)
         return StoreMiddleware
 
+    def provide_api(self):
+        return self
+
     def run(self):
         self.app = Starlite(
             route_handlers=[
-                # self.generate_controller('protocol'),
-                # self.generate_controller('getter'),
-                # self.generate_controller('setter'),
                 protocol_controller(self),
                 StoreController
             ],
             exception_handlers={
             },
-            openapi_config=OpenAPIConfig(title=self.name, version=self.version),
-            middleware=[self.create_store_middleware()]
+            openapi_config=OpenAPIConfig(
+                title=self.name,
+                version=self.version
+            ),
+            middleware=[],
+            dependencies={"api": Provide(self.provide_api)}
         )
         uvicorn.run(self.app, port=self.port, host=self.host)
 

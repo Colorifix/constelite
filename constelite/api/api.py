@@ -5,6 +5,7 @@ import inspect
 from typing import Callable, Optional, List, Type
 from pydantic import UUID4, BaseModel
 
+from constelite.models import Ref
 from constelite.store import BaseStore
 
 
@@ -31,6 +32,7 @@ class ConsteliteAPI:
         host: Optional[str] = None,
         port: Optional[int] = None,
         stores: Optional[List[BaseStore]] = [],
+        temp_store: Optional[BaseStore] = None
     ):
         self.name = name
         self.version = version
@@ -38,6 +40,10 @@ class ConsteliteAPI:
         self.port = port
         self.stores = stores
         self.protocols = []
+
+        if temp_store is not None:
+            self.temp_store = temp_store
+            self.stores.append(self.temp_store)
 
     def discover_protocols(self, module_root: str, bind_path: str):
         module = importlib.import_module(module_root)
@@ -89,6 +95,33 @@ class ConsteliteAPI:
             None
         )
 
+    def get_state(self, ref: Ref, cache: bool = True):
+        if ref.state is not None:
+            state = ref.state
+        else:
+            if ref.record is not None:
+
+                store = next(
+                    (
+                        store for store in self.stores
+                        if store.uid == ref.record.store.uid
+                    ),
+                    None
+                )
+
+                if store is None:
+                    raise ValueError(
+                        "Environment api does not have"
+                        f"a {ref.record.store.name} store("
+                        f"{ref.record.store.uid})"
+                    )
+
+                state = store.get(ref).state
+                if cache is True:
+                    ref.state = state
+
+        return state
+
 
 class ProtocolModel(BaseModel):
     """Base class for API methods
@@ -97,4 +130,5 @@ class ProtocolModel(BaseModel):
     name: Optional[str]
     fn: Callable
     fn_model: Type
+    ret_model: Type
     slug: str
