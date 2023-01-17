@@ -4,10 +4,10 @@ from constelite.utils import all_subclasses
 from constelite.models import AutoResolveBaseModel, Ref, FlexibleModel
 
 
-def get_auto_resolve_model(model_name: str):
+def get_auto_resolve_model(model_name: str, root_cls=AutoResolveBaseModel):
     model_type = next(
         (
-            m for m in all_subclasses(AutoResolveBaseModel)
+            m for m in all_subclasses(root_cls)
             if m.__name__ == model_name
         ),
         None

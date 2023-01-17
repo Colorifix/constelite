@@ -45,7 +45,7 @@ class BaseStore(StoreModel):
             values['name'] = cls.__name__
         return values
 
-    def uid_exists(self, uid: UID) -> bool:
+    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         raise NotImplementedError
 
     def create_model(
@@ -89,10 +89,14 @@ class BaseStore(StoreModel):
             rel_from_name: str) -> List[UID]:
         raise NotImplementedError
 
-    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
+    def create_relationships(
+            self,
+            from_uid: UID,
+            from_model_type: Type[StateModel],
+            inspector: RelInspector) -> None:
         raise NotImplementedError
 
-    def get_model_by_uid(
+    def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
@@ -117,15 +121,30 @@ class BaseStore(StoreModel):
             state_model_name=state_model_name
         )
 
-    def _validate_ref(self, ref: Ref):
+    def _validate_ref_uid(self, ref: Ref):
+        model_name = ref.state_model_name
+        if model_name is None:
+            raise ValueError("Unspecified ref.state_model_name")
+
+        state_model_type = get_auto_resolve_model(
+            model_name=model_name,
+            root_cls=StateModel
+        )
+
+        if not self.uid_exists(
+            uid=ref.uid,
+            model_type=state_model_type
+        ):
+            raise KeyError('Ref does not exist in the store')
+
+    def _validate_ref_full(self, ref: Ref):
         if ref.record is None:
             raise ValueError("Reference does not have a store record")
         if ref.record.store.uid != self.uid:
             raise ValueError(
                 'Reference store record is from a different store'
             )
-        if not self.uid_exists(ref.record.uid):
-            raise KeyError('Ref does not exist in the store')
+        self._validate_ref_uid(ref=ref)
 
     def _validate_method(self, method: StoreMethod):
         if method not in self._allowed_methods:
@@ -166,6 +185,7 @@ class BaseStore(StoreModel):
 
         self.create_relationships(
             from_uid=from_uid,
+            from_model_type=from_model_type,
             inspector=rel
         )
 
@@ -174,12 +194,8 @@ class BaseStore(StoreModel):
         # For put inside _update_relations when relationship is a
         # reference to existing state
         if ref.state is None:
-            if self.uid_exists(ref.uid):
-                return ref
-            else:
-                raise ValueError(
-                    "Can't put a reference without a state and unknow uid"
-                )
+            self._validate_ref_uid(ref)
+            return ref
 
         inspector = StateInspector.from_state(ref.state)
 
@@ -208,7 +224,7 @@ class BaseStore(StoreModel):
             )
 
         else:
-            self._validate_ref(ref)
+            self._validate_ref_full(ref)
             self.overwrite_static_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
@@ -250,7 +266,7 @@ class BaseStore(StoreModel):
     def patch(self, ref: Ref) -> Ref:
         self._validate_method('PATCH')
 
-        self._validate_ref(ref=ref)
+        self._validate_ref_full(ref=ref)
 
         if ref.state is None:
             return ref
@@ -298,7 +314,7 @@ class BaseStore(StoreModel):
     def delete(self, ref: Ref) -> None:
         self._validate_method('DELETE')
 
-        self._validate_ref(ref=ref)
+        self._validate_ref_full(ref=ref)
 
         model_type = next(
             (
@@ -313,7 +329,7 @@ class BaseStore(StoreModel):
                 "Unknown state model name '{ref.state_model_name}'"
             )
 
-        state = self.get_model_by_uid(
+        state = self.get_state_by_uid(
             uid=ref.uid,
             model_type=model_type
         )
@@ -347,7 +363,7 @@ class BaseStore(StoreModel):
 
     def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
-        self._validate_ref(ref)
+        self._validate_ref_full(ref)
 
         if ref.state_model_name == 'Any':
             model_type = Any
@@ -356,7 +372,7 @@ class BaseStore(StoreModel):
 
         return self.generate_ref(
             uid=ref.record.uid,
-            state=self.get_model_by_uid(
+            state=self.get_state_by_uid(
                 uid=ref.uid,
                 model_type=model_type
             )

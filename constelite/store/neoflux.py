@@ -57,7 +57,7 @@ class NeofluxStore(BaseStore):
         self.influx.create_database("constelite")
         self.influx.switch_database("constelite")
 
-    def uid_exists(self, uid: UID) -> bool:
+    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         return self.graph.nodes.match(
                 LIVE_LABEL,
                 **{UID_FIELD: uid}
@@ -351,7 +351,11 @@ class NeofluxStore(BaseStore):
         )
         return [r.get(f"n.{UID_FIELD}") for r in ret]
 
-    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
+    def create_relationships(
+            self,
+            from_uid: UID,
+            from_model_type: Type[StateModel],
+            inspector: RelInspector) -> None:
         node = self.get_node(uid=from_uid)
         new_to_refs = (
             inspector.to_refs
@@ -375,7 +379,7 @@ class NeofluxStore(BaseStore):
             if not self.graph.exists(rel):
                 self.graph.create(rel)
 
-    def get_model_by_uid(
+    def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]

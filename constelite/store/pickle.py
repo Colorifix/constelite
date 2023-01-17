@@ -27,16 +27,19 @@ class PickleStore(BaseStore):
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
 
-    def uid_exists(self, uid: UID) -> bool:
+    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         path = os.path.join(self.path, uid)
         return os.path.exists(path)
 
-    def get_model_by_uid(
+    def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
     ) -> StateModel:
-        if not self.uid_exists(uid):
+        if not self.uid_exists(
+            uid=uid,
+            model_type=model_type
+        ):
             raise ValueError(f"Model with reference '{uid}' cannon be found")
         else:
             path = os.path.join(self.path, uid)
@@ -78,7 +81,10 @@ class PickleStore(BaseStore):
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
-        if self.uid_exists(uid):
+        if self.uid_exists(
+            uid=uid,
+            model_type=model_type
+        ):
             path = os.path.join(self.path, uid)
             os.remove(path)
 
@@ -88,7 +94,7 @@ class PickleStore(BaseStore):
             model_type: Type[StateModel],
             props: Dict[str, StaticTypes]) -> None:
 
-        model = self.get_model_by_uid(
+        model = self.get_state_by_uid(
             uid=uid,
             model_type=model_type
         )
@@ -106,7 +112,7 @@ class PickleStore(BaseStore):
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, List[TimePoint]]) -> None:
-        model = self.get_model_by_uid(
+        model = self.get_state_by_uid(
             uid=uid,
             model_type=model_type
         )
@@ -123,7 +129,7 @@ class PickleStore(BaseStore):
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
-        model = self.get_model_by_uid(
+        model = self.get_state_by_uid(
             uid=uid,
             model_type=model_type
         )
@@ -150,7 +156,7 @@ class PickleStore(BaseStore):
             rel_from_name: str,
             ) -> List[UID]:
 
-        model = self.get_model_by_uid(
+        model = self.get_state_by_uid(
             uid=from_uid,
             model_type=from_model_type
         )
@@ -162,8 +168,12 @@ class PickleStore(BaseStore):
 
         return [orphan_ref.record.uid for orphan_ref in orphan_refs]
 
-    def create_relationships(self, from_uid: UID, inspector: RelInspector) -> None:
-        from_model = self.get_model_by_uid(
+    def create_relationships(
+            self,
+            from_uid: UID,
+            from_model_type: Type[StateModel],
+            inspector: RelInspector) -> None:
+        from_model = self.get_state_by_uid(
             uid=from_uid,
             model_type=inspector.to_model
         )
@@ -182,7 +192,7 @@ class PickleStore(BaseStore):
             to_uid = to_ref.uid
             to_refs.append(to_ref)
             if inspector.to_field_name is not None:
-                to_model = self.get_model_by_uid(
+                to_model = self.get_state_by_uid(
                     uid=to_uid,
                     model_type=inspector.to_model
                 )

@@ -4,6 +4,7 @@ from constelite.store.base import (
 )
 from constelite.store.pickle import PickleStore
 from constelite.store.neoflux import NeofluxStore
+from constelite.store.notion import NotionStore
 
 __all__ = [
     'Query',
@@ -12,4 +13,5 @@ __all__ = [
     'BaseStore',
     'PickleStore',
     'NeofluxStore',
+    'NotionStore'
 ]

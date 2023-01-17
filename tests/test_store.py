@@ -350,7 +350,10 @@ class StoreTestMixIn():
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.association), 1)
         self.assertTrue(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
 
     def test_overwrite_aggregation(self):
@@ -367,7 +370,10 @@ class StoreTestMixIn():
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.aggregation), 1)
         self.assertTrue(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
 
     def test_overwrite_composition(self):
@@ -384,7 +390,10 @@ class StoreTestMixIn():
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.composition), 1)
         self.assertFalse(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
 
     def test_patch_int(self):
@@ -511,7 +520,10 @@ class StoreTestMixIn():
 
         self.assertEqual(len(r_foo.state.association), 1)
         self.assertTrue(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
 
     def test_patch_aggregation(self):
@@ -527,10 +539,16 @@ class StoreTestMixIn():
         self.assertEqual(len(r_foo.state.aggregation), 2)
 
         self.assertTrue(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
         self.assertTrue(
-            self.store.uid_exists(r_bar.uid)
+            self.store.uid_exists(
+                uid=r_bar.uid,
+                model_type=Bar
+            )
         )
 
         self.assertIn(
@@ -555,10 +573,16 @@ class StoreTestMixIn():
         self.assertEqual(len(r_foo.state.composition), 2)
 
         self.assertTrue(
-            self.store.uid_exists(r_bar_ori.uid)
+            self.store.uid_exists(
+                uid=r_bar_ori.uid,
+                model_type=Bar
+            )
         )
         self.assertTrue(
-            self.store.uid_exists(r_bar.uid)
+            self.store.uid_exists(
+                uid=r_bar.uid,
+                model_type=Bar
+            )
         )
 
         self.assertIn(
@@ -575,7 +599,12 @@ class StoreTestMixIn():
 
         self.store.delete(ref=r_foo)
 
-        self.assertFalse(self.store.uid_exists(r_foo.uid))
+        self.assertFalse(
+            self.store.uid_exists(
+                uid=r_foo.uid,
+                model_type=Foo
+            )
+        )
 
     def test_delete_composite(self):
         r_bar = self.store.put(ref=ref(Bar(name='bar')))
@@ -589,8 +618,16 @@ class StoreTestMixIn():
 
         self.store.delete(ref=r_foo)
 
-        self.assertFalse(self.store.uid_exists(r_foo.uid))
-        self.assertFalse(self.store.uid_exists(r_bar.uid))
+        self.assertFalse(
+            self.store.uid_exists(
+                uid=r_foo.uid,
+                model_type=Foo
+            )
+        )
+        self.assertFalse(self.store.uid_exists(
+            uid=r_bar.uid,
+            model_type=Bar
+        ))
 
 
 class TestPickleStore(unittest.TestCase, StoreTestMixIn):
