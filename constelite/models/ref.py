@@ -1,7 +1,7 @@
-from typing import Generic, TypeVar, Optional, Any
+from typing import Generic, TypeVar, Optional, Any, Union
 
 from pydantic.generics import GenericModel
-from pydantic import UUID4, validator
+from pydantic import UUID4, validator, validate_arguments
 
 from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel
@@ -44,8 +44,19 @@ class Ref(GenericModel, Generic[M]):
             state=None
         )
 
+    def __getattr__(self, key):
+        if hasattr(self.state, key):
+            return getattr(self.state, key)
+        else:
+            raise AttributeError
 
-def ref(model: StateModel, guid: Optional[UUID4] = None):
+
+@validate_arguments
+def ref(model: Union[StateModel, Ref], guid: Optional[UUID4] = None):
+    if isinstance(model, StateModel):
+        state = model
+    else:
+        state = model.state
     return Ref(
-        state=model
+        state=state
     )

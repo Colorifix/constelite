@@ -182,7 +182,10 @@ class PickleStore(BaseStore):
             to_uid = to_ref.uid
             to_refs.append(to_ref)
             if inspector.to_field_name is not None:
-                to_model = self.get_model_by_uid(uid=to_uid)
+                to_model = self.get_model_by_uid(
+                    uid=to_uid,
+                    model_type=inspector.to_model
+                )
                 backref_list = getattr(to_model, inspector.to_field_name)
                 from_ref = self.generate_ref(uid=from_uid)
                 if backref_list is None:

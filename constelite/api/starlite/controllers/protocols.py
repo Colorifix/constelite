@@ -1,7 +1,7 @@
 from typing import Any
 from starlite import Controller, post
 
-from constelite.models import Ref
+from constelite.models import StateModel, Ref
 
 
 def generate_method(protocol_model):
@@ -10,21 +10,22 @@ def generate_method(protocol_model):
     fn = protocol_model.fn
 
     def wrapper(self, data: fn_model, api: Any) -> ret_model:
-        args = {
+        kwargs = {
             field_name: getattr(data, field_name, None)
             for field_name in data.__fields__.keys()
         }
-        args['api'] = api
-        ret = fn(**args)
+        kwargs['api'] = api
+        ret = fn(**kwargs)
 
-        temp_store = getattr(api, 'temp_store', None)
+        if isinstance(ret, StateModel):
+            temp_store = getattr(api, 'temp_store', None)
 
-        if temp_store is not None:
-            return temp_store.put(
-                ref=Ref[ret_model](state=ret)
-            )
-        else:
-            return ret
+            if temp_store is not None:
+                return temp_store.put(
+                    ref=Ref[ret_model](state=ret)
+                )
+
+        return ret
 
     wrapper.__name__ = fn.__name__
     wrapper.__module__ = fn.__module__

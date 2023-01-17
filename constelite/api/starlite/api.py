@@ -1,15 +1,9 @@
-import inspect
-
-from pydantic import BaseModel, root_validator, validator
-
 from typing import Literal, Optional
 
-from starlite import Provide, Starlite, OpenAPIConfig, MiddlewareProtocol, State
+from starlite import Provide, Starlite, OpenAPIConfig, MiddlewareProtocol
 
 from openapi_schema_pydantic import Tag
 
-from constelite.models import StateModel, Ref, StoreModel, resolve_model
-from constelite.store import BaseStore
 from constelite.api.api import ConsteliteAPI
 
 import uvicorn
@@ -68,42 +62,3 @@ class StarliteAPI(ConsteliteAPI):
             dependencies={"api": Provide(self.provide_api)}
         )
         uvicorn.run(self.app, port=self.port, host=self.host)
-
-    # def generate_endpoint(
-    #         self,
-    #         method: APIModel,
-    #         controller_type: ControllerType
-    #      ) -> Callable:
-    #     """Generates a post endpoint from a ProtocolAPI model.
-    #     """
-
-    #     async def method_wrapper(
-    #         self,
-    #         data: method.fn_model,
-    #     ) -> method.ret_model:
-    #         if inspect.iscoroutinefunction(method.fn):
-    #             ret = await method.fn(**data.__dict__)
-    #         else:
-    #             ret = method.fn(**data.__dict__)
-    #         return ret
-
-    #     method_wrapper.__name__ = method.fn.__name__
-
-    #     return post(
-    #         path=f'/{method.fn.__name__}',
-    #         tags=[controller_type],
-    #         description=method.name
-    #     )(method_wrapper)
-
-    # def generate_controller(
-    #         self,
-    #         controller_type: ControllerType,
-    #      ) -> Controller:
-    #     attrs = {
-    #         'path': f'/{controller_type}'
-    #     }
-
-    #     for method in getattr(self, f'get_{controller_type}_methods')():
-    #         logger.info(f"Adding path for {method.name}")
-    #         attrs[method.path] = self.generate_endpoint(method, controller_type)
-    #     return type('ProtocolController', (Controller,), attrs)

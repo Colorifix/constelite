@@ -6,7 +6,8 @@ import pandera as pa
 from constelite.models import (
     StateModel, ref, Dynamic, TimePoint,
     Tensor, TensorSchema,
-    Association, Composition, Aggregation
+    Association, Composition, Aggregation,
+    backref
 )
 from constelite.store import PickleStore, NeofluxStore
 
@@ -31,6 +32,11 @@ class Bar(StateModel):
     name: str
 
 
+class Baz(StateModel):
+    name: str
+    foo: backref(model="Foo", from_field="baz")
+
+
 class Foo(StateModel):
     int_field: Optional[int]
     str_field: Optional[str]
@@ -47,6 +53,7 @@ class Foo(StateModel):
     association: Optional[Association[Bar]]
     composition: Optional[Composition[Bar]]
     aggregation: Optional[Aggregation[Bar]]
+    baz: Optional[Association[Baz]]
 
 
 class StoreTestMixIn():
@@ -202,6 +209,20 @@ class StoreTestMixIn():
         value = [ref(Bar(name='bar'))]
 
         self.run_rel_check('aggregation', value)
+
+    def test_put_backref(self):
+        foo = Foo(
+            baz=[ref(Baz(name='baz'))]
+        )
+
+        r_foo = self.store.put(ref=ref(foo))
+
+        r_foo = self.store.get(ref=r_foo)
+
+        r_baz = self.store.get(ref=r_foo.state.baz[0])
+
+        self.assertIsNotNone(r_baz.state.foo)
+        self.assertEqual(r_baz.state.foo[0].uid, r_foo.uid)
 
     def test_overwrite_int(self):
         self.run_overwrite_check('int_field', 1, 2)

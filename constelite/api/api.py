@@ -65,12 +65,14 @@ class ConsteliteAPI:
             cls_protocols = inspect.getmembers(
                 module,
                 lambda member: (
-                    inspect.isclass(member) and issubclass(member, Protocol)
+                    inspect.isclass(member)
+                    and issubclass(member, Protocol)
+                    and member != Protocol
                 )
             )
 
             self.protocols.extend(
-                [cls.get_model() for cls in cls_protocols]
+                [cls.get_model() for _, cls in cls_protocols]
             )
 
         for protocol_model in self.protocols:

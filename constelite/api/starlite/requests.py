@@ -2,10 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, validator, root_validator
 
-from starlite import State
-
 from constelite.models import StoreModel, Ref, resolve_model
-from constelite.store import BaseStore
 
 
 def validate_state(ref: Ref) -> Ref:

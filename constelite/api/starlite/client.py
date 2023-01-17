@@ -41,42 +41,9 @@ class StarliteClient:
         if ret.status_code == 201:
             if ret.text != '':
                 data = ret.json()
-                return resolve_model(values=data)
-
-    # @property
-    # def getter(self):
-    #     return StarliteClient(url=os.path.join(self.url, 'getter'))
-
-    # @property
-    # def protocols(self):
-    #     return StarliteClient(url=os.path.join(self.url, 'protocol'))
-
-    # @property
-    # def setter(self):
-    #     return StarliteClient(url=os.path.join(self.url, 'setter'))
-
-    # @property
-    # def store(self):
-    #     return StarliteClient(url=os.path.join(self.url, 'store'))
-
-    # def __getattr__(self, key):
-    #     def wrapper(**kwargs):
-    #         path = os.path.join(self.url, key)
-    #         obj = RequestModel(**kwargs)
-
-    #         ret = self._http.post(
-    #             path,
-    #             data=obj.json()
-    #         )
-
-    #         if ret.status_code == 201:
-    #             if ret.text != '':
-    #                 data = ret.json()
-    #                 return resolve_model(values=data)
-    #                 # ref = data.pop('ref', None)
-    #                 # if ref is not None:
-    #                 #     return Ref(ref=ref)
-    #                 # return StateModel.resolve(values=data)
-    #         else:
-    #             raise Exception(f"Failed to call remote method\n {ret.text}")
-    #     return wrapper
+                if isinstance(data, dict) and 'model_name' in data:
+                    return resolve_model(values=data)
+                else:
+                    return data
+        elif ret.status_code == 500:
+            raise SystemError(ret.json()['detail'])
