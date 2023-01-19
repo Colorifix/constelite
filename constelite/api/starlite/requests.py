@@ -28,7 +28,6 @@ class RefRequest(BaseModel):
 class PutRequest(BaseModel):
     ref: Ref
     store: Optional[StoreModel]
-
     _validate_state = validator('ref', allow_reuse=True)(validate_state)
 
     def __init__(self, **data):

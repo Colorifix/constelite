@@ -1,8 +1,10 @@
-from typing import Type, Dict, Optional, List
+from typing import Type, Dict, Optional, List, ClassVar
 
 from pydantic import BaseModel, Field
 
-from python_notion_api import NotionAPI
+from python_notion_api import NotionAPI, NotionDatabase, NotionPage
+from python_notion_api.models.objects import ParentObject
+from python_notion_api.models.values import PropertyValue
 
 from constelite.models import (
     StateModel,
@@ -16,37 +18,72 @@ from constelite.store import BaseStore
 
 
 class ModelHandler(BaseModel):
-    api: Optional[NotionAPI] = Field(exclude=True)
+    store: ClassVar[Optional["NotionStore"]] = Field(exclude=True)
 
     class Config:
         arbitrary_types_allowed = True
+        allow_population_by_field_name = True
+
+    def _to_prop_dict(self) -> Dict[str, PropertyValue]:
+        return {
+            field.alias: getattr(self, field_name)
+            for field_name, field in self.__fields__.items()
+            if getattr(self, field_name) is not None
+        }
 
     def create_page(self) -> UID:
-        db = self.api.get_database(database_id=self._database_uid)
-        page = db.create_page(
-            properties=self.dict(by_alias=True)
+        properties = self._to_prop_dict()
+
+        request = NotionDatabase.CreatePageRequest(
+            parent=ParentObject(
+                type="database_id",
+                database_id=self._database_id
+            ),
+            properties=properties
         )
-        return page.page_id
+
+        data = request.json(by_alias=True, exclude_unset=True)
+
+        new_page = self.store.api._post("pages", data=data)
+
+        return new_page.page_id
 
     def update_page(self, uid: UID):
-        page = self.api.get_page(page_id=uid)
+        properties = self._to_prop_dict()
 
-        props = self.dict(by_alias=True, exclude_unset=True)
+        request = NotionPage.PatchRequest(
+            properties=properties
+        )
 
-        for prop_name, value in props.items():
-            page.set(prop_name, value)
+        data = request.json(by_alias=True, exclude_unset=True)
+
+        self.store.api._patch(
+            f"pages/{uid}",
+            data=data
+        )
 
     @classmethod
     def from_uid(cls, uid: UID) -> StateModel:
-        page = cls.api.get_page(page_id=uid)
+        page = cls.store.api.get_page(page_id=uid)
 
         handler = cls(**page.properties)
 
         return handler
 
+    @classmethod
+    def from_values(cls, **values):
+        props = {
+            key: cls.__fields__[key].type_(init=value)
+            for key, value in values.items()
+            if value is not None
+        }
+
+        return cls(**props)
+
 
 class NotionStore(BaseStore):
-    _model_handlers: Dict[Type[StateModel], Type[ModelHandler]]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE"]
+    model_handlers: Dict[Type[StateModel], Type[ModelHandler]] = {}
     access_token: str = Field(exclude=True)
     api: Optional[NotionAPI] = Field(exclude=True)
 
@@ -58,10 +95,10 @@ class NotionStore(BaseStore):
         self.api = NotionAPI(access_token=self.access_token)
 
     def get_handler_cls_or_fail(self, model_type: Type[StateModel]):
-        handler_cls = self._model_handlers.get(model_type, None)
+        handler_cls = self.model_handlers.get(model_type, None)
 
         if handler_cls is not None:
-            handler_cls.api = self.api
+            handler_cls.store = self
             return handler_cls
         else:
             raise TypeError(
@@ -81,7 +118,7 @@ class NotionStore(BaseStore):
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
         handler = handler_cls.from_state(
-            **(static_props | dynamic_props)
+            state=model_type(**(static_props | dynamic_props))
         )
 
         uid = handler.create_page()
@@ -92,7 +129,9 @@ class NotionStore(BaseStore):
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
-        pass
+
+        page = self.api.get_page(page_id=uid)
+        page.alive = False
 
     def overwrite_static_props(
             self,
@@ -104,7 +143,7 @@ class NotionStore(BaseStore):
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
         handler = handler_cls.from_state(
-            model_type(**props)
+            state=model_type(**props)
         )
 
         handler.update_page(uid=uid)
@@ -118,7 +157,7 @@ class NotionStore(BaseStore):
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
         handler = handler_cls.from_state(
-            model_type(**props)
+            state=model_type(**props)
         )
 
         handler.update_page(uid=uid)
@@ -129,7 +168,27 @@ class NotionStore(BaseStore):
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]
     ) -> None:
-        pass
+        handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
+
+        handler = handler_cls.from_uid(uid=uid)
+
+        state = handler.to_state(model_type=model_type)
+
+        for prop_name, prop in props:
+            points = getattr(
+                state, prop_name
+            ).points
+
+            if points is None:
+                points = []
+
+            points.extend(prop.points)
+
+            setattr(state, prop_name, points)
+
+        handler = handler.from_state(state)
+
+        handler.update_page(uid=uid)
 
     def delete_all_relationships(
             self,
@@ -141,7 +200,7 @@ class NotionStore(BaseStore):
 
         handler = handler_cls.from_uid(uid=from_uid)
 
-        state = handler.to_state(state_model=from_model_type)
+        state = handler.to_state(model_type=from_model_type)
 
         refs = getattr(state, rel_from_name, None)
 
@@ -153,7 +212,7 @@ class NotionStore(BaseStore):
         ]
 
         handler = handler_cls.from_state(
-            from_model_type(
+            state=from_model_type(
                 **{rel_from_name: []}
             )
         )
@@ -167,12 +226,11 @@ class NotionStore(BaseStore):
             from_uid: UID,
             from_model_type: Type[StateModel],
             inspector: RelInspector) -> None:
-
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
         handler = handler_cls.from_uid(uid=from_uid)
 
-        state = handler.to_state(state_model=from_model_type)
+        state = handler.to_state(model_type=from_model_type)
 
         refs = getattr(state, inspector.from_field_name)
 

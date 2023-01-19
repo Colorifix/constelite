@@ -33,7 +33,7 @@ class StoreController(Controller):
     @post('/get')
     def get(self, data: GetRequest, api: Any) -> StateModel:
         ref = data.ref
-
+        breakpoint()
         store = api.get_store(ref.record.store.uid)
 
         if store is None:

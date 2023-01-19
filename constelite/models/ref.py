@@ -24,7 +24,7 @@ class Ref(GenericModel, Generic[M]):
     @validator('state_model_name', always=True)
     def assign_state_type(cls, v, values):
         state = values.get('state', None)
-        if v is not None and state is None:
+        if v is not None:
             return v
         if cls.__fields__['state'].type_ != Any:
             return cls.__fields__['state'].type_.__name__
@@ -49,6 +49,20 @@ class Ref(GenericModel, Generic[M]):
             return getattr(self.state, key)
         else:
             raise AttributeError
+
+    def __setattr__(self, key, value):
+        if hasattr(self, key):
+            super().__setattr__(key, value)
+        else:
+            if self.state is None:
+                from constelite.models.resolve import get_auto_resolve_model
+
+                state_model = get_auto_resolve_model(
+                    self.state_model_name, StateModel
+                )
+
+                self.state = state_model()
+            setattr(self.state, key, value)
 
 
 @validate_arguments

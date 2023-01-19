@@ -265,7 +265,6 @@ class BaseStore(StoreModel):
 
     def patch(self, ref: Ref) -> Ref:
         self._validate_method('PATCH')
-
         self._validate_ref_full(ref=ref)
 
         if ref.state is None:
@@ -273,17 +272,18 @@ class BaseStore(StoreModel):
 
         inspector = StateInspector.from_state(ref.state)
 
-        self.overwrite_static_props(
-            uid=ref.uid,
-            model_type=inspector.model_type,
-            props=inspector.static_props
-        )
-
-        self.extend_dynamic_props(
-            uid=ref.uid,
-            model_type=inspector.model_type,
-            props=inspector.dynamic_props
-        )
+        if inspector.static_props != {}:
+            self.overwrite_static_props(
+                uid=ref.uid,
+                model_type=inspector.model_type,
+                props=inspector.static_props
+            )
+        if inspector.dynamic_props != {}:
+            self.extend_dynamic_props(
+                uid=ref.uid,
+                model_type=inspector.model_type,
+                props=inspector.dynamic_props
+            )
 
         for field_name, rel in inspector.associations.items():
             self._update_relationships(
