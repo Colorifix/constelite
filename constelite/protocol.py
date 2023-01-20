@@ -6,8 +6,6 @@ from pydantic import BaseModel, validate_arguments, create_model
 
 from constelite.api import ProtocolModel
 
-from loguru import logger
-
 
 class protocol:
     """Decorator for protocols

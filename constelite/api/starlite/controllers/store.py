@@ -1,7 +1,7 @@
 from typing import Any
-from starlite import Controller, post, State
+from starlite import Controller, post
 
-from constelite.models import StateModel, Ref, resolve_model
+from constelite.models import StateModel, Ref
 from constelite.api.starlite.requests import (
     PutRequest, PatchRequest, GetRequest, DeleteRequest
 )
@@ -9,6 +9,7 @@ from constelite.api.starlite.requests import (
 
 class StoreController(Controller):
     path = '/store'
+    tags = ["Store"]
 
     @post('/put')
     def put(self, data: PutRequest, api: Any) -> Ref:
@@ -33,7 +34,6 @@ class StoreController(Controller):
     @post('/get')
     def get(self, data: GetRequest, api: Any) -> StateModel:
         ref = data.ref
-        breakpoint()
         store = api.get_store(ref.record.store.uid)
 
         if store is None:

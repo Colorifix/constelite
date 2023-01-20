@@ -1,10 +1,13 @@
-from typing import Any
+from typing import Any, Callable
 from starlite import Controller, post
 
 from constelite.models import StateModel, Ref
+from constelite.api import ProtocolModel
 
 
-def generate_method(protocol_model):
+def generate_method(
+        protocol_model: ProtocolModel
+        ) -> Callable[[StateModel, "StarliteAPI"], Any]:
     fn_model = protocol_model.fn_model
     ret_model = protocol_model.ret_model
     fn = protocol_model.fn
@@ -30,19 +33,20 @@ def generate_method(protocol_model):
     wrapper.__name__ = fn.__name__
     wrapper.__module__ = fn.__module__
     wrapper.__doc__ = fn.__doc__
-
     return wrapper
 
 
-def protocol_controller(api) -> Controller:
+def protocol_controller(api: "StarliteAPI") -> Controller:
+    """Generates a controller to handle protocol endpoints
+    """
     attrs = {
-        "path": "/protocols"
+        "path": "/protocols",
+        "tags": ["Protocols"]
     }
 
     for protocol_model in api.protocols:
 
-        attrs[protocol_model.slug] = post(path=protocol_model.path)(
-            # generate_method(protocol_model.fn, protocol_model.fn_model)
+        attrs[protocol_model.slug] = post(path=protocol_model.path, name='foo')(
             generate_method(protocol_model)
         )
 

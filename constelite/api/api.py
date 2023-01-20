@@ -5,12 +5,20 @@ import inspect
 from typing import Callable, Optional, List, Type
 from pydantic import UUID4, BaseModel
 
-from constelite.models import Ref
+from constelite.models import Ref, StoreModel, StateModel
 from constelite.store import BaseStore
 
 
 class ConsteliteAPI:
-    """Base class for API implementations
+    """Base class for API implementations.
+
+    Args:
+        name: Name of the API.
+        version: Version of the API.
+        host: A host to listen.
+        port: A port to bind to.
+        stores: A list of stores that the API will handle.
+        temp_store: A store to use for caching return states of the protocols.
     """
     __instance = None
 
@@ -45,7 +53,13 @@ class ConsteliteAPI:
             self.temp_store = temp_store
             self.stores.append(self.temp_store)
 
-    def discover_protocols(self, module_root: str, bind_path: str):
+    def discover_protocols(self, module_root: str, bind_path: str) -> None:
+        """Discovers protocols in the given module
+
+        Args:
+            module_root: A name of the module to look for protocols
+            bind_path: A path where to bind the protocols
+        """
         module = importlib.import_module(module_root)
         if module is not None:
             fn_protocols = inspect.getmembers(
@@ -85,10 +99,12 @@ class ConsteliteAPI:
                 bind_path, module_path, protocol_model.slug
             )
 
-    def run(self):
-        pass
+    def run(self) -> None:
+        raise NotImplementedError
 
-    def get_store(self, uid: UUID4):
+    def get_store(self, uid: UUID4) -> StoreModel:
+        """Looks up a store by its uid
+        """
         return next(
             (
                 store for store in self.stores
@@ -97,7 +113,20 @@ class ConsteliteAPI:
             None
         )
 
-    def get_state(self, ref: Ref, cache: bool = True):
+    def get_state(self, ref: Ref, cache: bool = True) -> StateModel:
+        """Retrieves a state of a reference from store
+
+        Args:
+            ref: Input reference.
+            cache: Assigns retrieved state to the input reference if `True`
+
+        Returns:
+            A state of the reference.
+
+        Raises:
+            ValueError:
+                If reference store is not known
+        """
         if ref.state is not None:
             state = ref.state
         else:

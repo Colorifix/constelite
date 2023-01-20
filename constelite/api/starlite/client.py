@@ -1,3 +1,5 @@
+from typing import Any
+
 import os
 
 from pydantic import BaseModel, Extra
@@ -14,6 +16,8 @@ class RequestModel(BaseModel, extra=Extra.allow):
 
 
 class StarliteClient:
+    """A python client for communicating with the Starlite API
+    """
     def __init__(self, url: str):
         self.url = url
         retry_strategy = Retry(
@@ -27,10 +31,10 @@ class StarliteClient:
 
         self._http.mount("https://", adapter)
 
-    def __getattr__(self, key):
+    def __getattr__(self, key) -> "StarliteClient":
         return StarliteClient(url=os.path.join(self.url, key))
 
-    def __call__(self, **kwargs):
+    def __call__(self, **kwargs) -> Any:
         obj = RequestModel(**kwargs)
 
         ret = self._http.post(
