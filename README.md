@@ -2,167 +2,110 @@
 
 ## Definitions
 
-### Config
+### StateModel
 
-Configs are just clases that define configurations. They are based on `pydantic.BaseModel` and must have serializable fields. Config value are stored in `$API_CONFIG` file ('.config' by default) and are primarily used to auto-configure getters and setters.
+Model is just a class that is derived from `constelite.StateModel`, which is just a fancy `pydantic.BaseModel`.
 
-### Model
+### Store
 
-Model is just a class that is derived from `constelite.Model`, which is your ordinary `pydantic.BaseModel`.
+Store is a wrapper around a third-party API or a database. All stores share a standard interface, allowing to `put`, `patch`, `get`, `query` and `delete` state models.
 
-### Getter
+### StoreRecord
 
-A function wrapped in `@getter` that gets some data from somewhere and returns it to the user.
+Represents a record of an entity in the store. It contains inofrmation about the store and has a unique identifier.
 
-* Getters must not call setters or protocols.
-* Gerrers may call other getters (not tested yet).
-* Getters must return a model.
-* Getters may use `config` attribute has has a special meaning. See below.
+### Ref
 
-
-### Setter
-
-A function wrapped in `@setter` that sets(writes) a model to somewhere.
-
-* Apart from optional `config`, setters must have a single extra argument `model` with a typehint specifying a model type.
-* Setters must not call getters or protocols.
-* Setters may call other setters (not tested yet).
-* Setters may use `config` attribute has has a special meaning. See below.
+Represents a referene to a store record of an entity. Think of it as a pointer to a state model stored in a remote store.
 
 ### Protocol
 
 A function wrapped in `@protocol` that convers one or more models into another model.
 
+Can alos be implemented as a `Protocol` class with a `run()` method.
 
-* Protocols must not call getters or setters.
-* Protocols must not call other protocols.
-* Protocols must use type hints for all arguments.
-* Protocols must have a return type specified.
-
-
-### Store
-
-Store allows to save models on the server for later use. Each stored model has a reference of type `Ref`. You can pass reference to setters and protocols instead of passing actual models. You can also ask protocol or getter to store the model and return you a reference insted by passing an extra `store = True` argument.
-
-Currently, we are using `pickle` as a store engine. You can setup a directory where the models are saved by adjusting `[StoreConfig]` section of the `$API_CONFIG` file.
-
-```toml
-[StoreConfig]
-path="/path/to/store"
-```
 
 ## How to
 
-### Define a new model
+### Define a new state model
 
-Constelite uses `pydantic`. All models in constelite should be defined from `constelite.Model` base class.
-
-
-```python
-from constelite import Model
-
-
-class Gene(Model):
-    seq: str
-    name: str
-    description: str
-```
-
-### Add a getter
-
-Getters are just fancy functions that can use a special `config` attribute to store configutation model. All configs should be derived from `constelite.Config` class. The `config` value should be either supplied when calling a getter or defined in `$API_CONFIG` file (defaults to '.config'). If nether are specified default values set in the config class definition will be used.
-
-Getter function must have type hints for `config` attribute as well as for the return type.
+Constelite uses `pydantic`. All models in constelite should be defined from `constelite.StateModel` base class.
 
 
 ```python
-from constelite import getter, Config
-from model import Gene
-
 from typing import Optional
+from constelite.models import Dynamic, StateModel
 
 
-class UniprotGetterConfig(Config):
-    url: Optional[str] = 'http://uniprots.com'
-
-
-@getter(name="Get Uniprot gene")
-def get_uniprot_gene(config: UniprotGetterConfig, gene_id: str) -> Gene:
-    return Gene(
-        name=f"Uniprot gene {gene_id}",
-        seq="ATG",
-        description=f"Obtained from {config.url}"
-    )
-```
-
-## Add a setter
-
-Same as getter, just fancy function that can take `config` as an argument. Setters always have a `model` argument of the type of model they are setting. Setters must not return anything.
-
-```python
-from constelite import setter, Config, FlexibleModel
-from model import Gene
-
-from loguru import logger
-
-
-class TerminalSetterConfig(Config):
-    format_str: str = "{model.__class__.__name__}: {model}"
-
-
-@setter()
-def set_gene_to_terminal(config: TerminalSetterConfig, model: Gene):
-    logger.info(config.format_str.format(model=model))
-
-
-@setter()
-def set_model_to_terminal(config: TerminalSetterConfig, model: FlexibleModel):
-    logger.info(config.format_str.format(model=model))
+class Message(StateModel):
+    message: str
+    likes: Optional[Dynamic[int]]
 ```
 
 ### Add a protocol
 
-Protocols are another type of fancy functions. No configs this time. Must have a type hint for the return type.
+Protocols can be defined as function wrapped in a `@protocol` or a class derived from `Protocol`.
+
+**Functional protocols**
+
+* Must use type hints.
+* Must use references (not state models) as input arguments and state models as returns.
+* Must have an `api` argument that will be linked to the instance of the API.
 
 ```python
+from typing import List, Any
+
+from constelite.models import Ref
+from constelite.protocol import protocol
+
+from model import Message
+
+
+@protocol(name='Combine messages')
+def combine_messages(messages: List[Ref[Message]], api: Any) -> Message:
+    return Message(
+        message=''.join([api.get_state(message).message for message in messages]),
+    )
+```
+
+**Class protocols**
+
+* Must have a `run()` method defined.
+* The `run()` method must use type hints.
+* The `run()` must use references (not state models) as input arguments and state models as returns.
+* The `api` instance can be accessed through `self.api`
+
+```python
+
 from typing import List
-from constelite import protocol
-from model import Gene
+from constelite.models import Ref
+from constelite.protocol import Protocol
+
+from model import Message
 
 
-@protocol(name='Combine genes')
-def combine_genes(genes: List[Gene], name: str) -> Gene:
-    return Gene(
-        name=name,
-        seq=''.join([gene.seq for gene in genes]),
-        description=(
-            f"Combination of "
-            f"{', '.join([gene.name for gene in genes])}"
-        )
-    )
-```
+class SumTotalLikes(Protocol):
+    _name = "Sum total likes"
 
-### Start a server
+    messages: List[Ref[Message]]
 
-Constelite auto-discovers all getters, setters and protocols for you. Just make sure you import them.
+    def run(self) -> int:
+        total = 0
+        for r_message in self.messages:
+            message = self.api.get_state(r_message)
+            points = message.likes.points
+            if len(points) > 0:
+                total += points[-1].value
+        return total
+``` 
 
-```python
-from constelite.api import StarliteAPI
-from protocol import *
-from getter import *
-from setter import *
+### Start an API server
 
-if __name__ == '__main__':
-    api = StarliteAPI(
-        name='Example Starlite API',
-        version='0.0.1',
-        port=8083
-    )
+* Create an instance of the API.
+* Discover protocols using `api.discover_protocols()`
+* Launch using `api.run()` method
+* See `example/api`
 
-    api.run()
-```
-
-This should start a `starlite` server and all the fancy functions are now serverd over HTTP. You can explore the API by navigating to `http://127.0.0.1:8083/schema`.
 
 ### Call remote functions
 
@@ -170,81 +113,8 @@ Easy, just create an instance of `StarliteClient` and use it to do the reemote c
 
 ```python
 from constelite.api import StarliteClient
-from model import Gene
-from getter import UniprotGetterConfig
+
 
 if __name__ == '__main__':
     client = StarliteClient(url='http://127.0.0.1:8083')
-
-    getter_config = UniprotGetterConfig(
-        url='www'
-    )
-
-    geneA = client.getter.get_uniprot_gene(
-        config=getter_config,
-        gene_id='gene_a'
-    ).asmodel(Gene)
-
-    geneB = client.getter.get_uniprot_gene(gene_id='gene_b').asmodel(Gene)
-
-    gene = client.protocol.combine_genes(
-        genes=[
-            geneA,
-            geneB
-        ],
-        name='Gene C'
-    )
-
-    client.setter.set_model_to_terminal(model=gene)
-``` 
-
-The `StarliteClient.getter` gives you access to all the getters, `StarliteClient.setter` to all setters and `StarliteClient.protocol` ... you guesed it.
-
-So if we want to call a
-
-```python
-@getter(name="Get Uniprot gene")
-def get_uniprot_gene(config: UniprotGetterConfig, gene_id: str) -> Gene:
-    ...
-``` 
-call `client.getter.get_uniprot_gene(gene_id='...')`
-
-The remote calls can't resolve the return models (yet) so they will always return a `FlexbleModel` object or `None`. To convert `FlexibleModel` to the target model, you can use `FlexibleModel.asmodel()` method.
-
-### Work with store
-
-You can ask getter or protocol to sotre the returned model on the server and pass you the rerference instead.
-
-```python
-
-r_geneA = client.getter.get_uniprot_gene(gene_id='gene_a', store=True)
-
-
-gene = client.protocol.combine_genes(
-    genes=[
-        r_geneA,
-        geneB
-    ],
-    name='Gene C',
-    store=True
-)
-```
-
-Note that `ref_geneA` can be passed instead of an actual `Gene` model.
-
-You can also pass reference to setter instead of the model
-
-```python
-client.setter.set_model_to_terminal(model=ref_geneA)
-```
-
-You can also work directly with the store to load or save models
-
-
-```python
-gene = client.store.load(ref=ref_geneA)
-```
-
-```python
-r_GeneB = client.store.save(model=geneB)
 ```

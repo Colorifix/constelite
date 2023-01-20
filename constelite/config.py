@@ -1,26 +1,35 @@
+from typing import Dict, List
 import os
 import toml
 
 from pydantic import BaseModel
 
-from loguru import logger
+from constelite.models.store import StoreModel
 
 
 class Config(BaseModel):
-    pass
+    stores: List[StoreModel]
 
 
-def get_config(config_cls):
+def search_key(key: str, data: Dict, parent: str = "root"):
+    key_parts = key.split('.')
+    sub_key = key_parts[0]
+    remainder = ".".join(key_parts[1:])
+
+    data = data.get(key_parts[0], None)
+    if data is None:
+        raise ValueError("Can't find {sub_key} in {parent}")
+
+    if remainder == "":
+        return data
+    else:
+        return search_key(remainder, data, f"{parent}.{sub_key}")
+
+
+def load_config():
     env = os.getenv("API_CONFIG", ".config")
-
     try:
-        config = toml.load(env)
-        return config_cls(**config[config_cls.__name__])
+        data = toml.load(env)
+        return Config(**data)
     except toml.TomlDecodeError as e:
         raise BaseException(f"Invalid config: {str(e)}")
-    except KeyError:
-        logger.debug(f"Failed to find config for {config_cls.__name__}")
-        return config_cls()
-    except FileNotFoundError:
-        logger.debug("Failed to find config file")
-        return config_cls()

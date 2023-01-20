@@ -1,23 +1,15 @@
-from typing import List, Optional
-
+from typing import Any, Optional
 from inspect import signature, Parameter
+import re
 
-from pydantic import validate_arguments, create_model
+from pydantic import BaseModel, validate_arguments, create_model
 
-from constelite import ProtocolAPIModel, get_store
-
-from loguru import logger
+from constelite.api import ProtocolModel
 
 
 class protocol:
     """Decorator for protocols
     """
-    __protocols: List[ProtocolAPIModel] = []
-
-    @classmethod
-    @property
-    def protocols(cls) -> List[ProtocolAPIModel]:
-        return cls.__protocols
 
     def __init__(self, name):
         self.name = name
@@ -38,48 +30,60 @@ class protocol:
             for param_name, param in signature(fn)._parameters.items()
         }
 
-        fields['store'] = (Optional[bool], False)
+        fields.pop('api')
 
         return create_model(fn.__name__, **fields)
 
     def __call__(self, fn):
         fn_name = fn.__name__
 
-        if fn_name in self.__protocols:
-            logger.warn(f"Duplicate of {fn_name} found. Skipping...")
-            return fn
-        else:
-
-            ret_model = fn.__annotations__.get('return', None)
-            if ret_model is None:
-                raise ValueError(
-                    f'Getter function {fn_name} has no return type specified.'
-                )
-
-            model = self._generate_model(fn)
-
-            def wrapper(**kwargs) -> ret_model:
-                to_store = kwargs.pop('store')
-
-                ret = validate_arguments(fn)(**kwargs)
-
-                if to_store is True:
-                    store = get_store()
-                    return store.store(ret)
-                else:
-                    return ret
-
-            path = fn.__name__
-            wrapper.__name__ = path
-
-            self.__protocols.append(
-                ProtocolAPIModel(
-                    name=self.name,
-                    fn=wrapper,
-                    ret_model=ret_model,
-                    fn_model=model,
-                    path=path
-                )
+        ret_model = fn.__annotations__.get('return', None)
+        if ret_model is None:
+            raise ValueError(
+                f'Getter function {fn_name} has no return type specified.'
             )
 
-            return validate_arguments(fn)
+        model = self._generate_model(fn)
+
+        fn._protocol_model = ProtocolModel(
+            name=self.name,
+            fn=fn,
+            slug=fn.__name__,
+            ret_model=ret_model,
+            fn_model=model,
+        )
+
+        return validate_arguments(fn)
+
+
+class Protocol(BaseModel):
+    _name: Optional[str]
+    api: Optional[Any]
+
+    @classmethod
+    def get_slug(cls):
+        pattern = re.compile(r'(?<!^)(?=[A-Z])')
+        name = pattern.sub('_', cls.__name__).lower()
+        return name
+
+    @classmethod
+    def get_model(cls):
+        ret_model = cls.run.__annotations__.get('return', None)
+
+        def wrapper(**kwargs) -> ret_model:
+            protocol = cls(**kwargs)
+            return protocol.run()
+
+        slug = cls.get_slug()
+
+        wrapper.__name__ = slug
+        wrapper.__module__ = cls.__module__
+        wrapper.__doc__ = cls.__doc__
+
+        return ProtocolModel(
+            name=getattr(cls, '_name', None) or cls.__name__,
+            fn=wrapper,
+            slug=cls.get_slug(),
+            ret_model=ret_model,
+            fn_model=cls
+        )

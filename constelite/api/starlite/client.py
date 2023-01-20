@@ -1,3 +1,5 @@
+from typing import Any
+
 import os
 
 from pydantic import BaseModel, Extra
@@ -6,14 +8,17 @@ from requests import Session
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-from constelite import Model, Ref
+from constelite.models import resolve_model
 
+from loguru import logger
 
 class RequestModel(BaseModel, extra=Extra.allow):
     pass
 
 
 class StarliteClient:
+    """A python client for communicating with the Starlite API
+    """
     def __init__(self, url: str):
         self.url = url
         retry_strategy = Retry(
@@ -27,40 +32,28 @@ class StarliteClient:
 
         self._http.mount("https://", adapter)
 
-    @property
-    def getter(self):
-        return StarliteClient(url=os.path.join(self.url, 'getter'))
+    def __getattr__(self, key) -> "StarliteClient":
+        return StarliteClient(url=os.path.join(self.url, key))
 
-    @property
-    def protocol(self):
-        return StarliteClient(url=os.path.join(self.url, 'protocol'))
+    def __call__(self, **kwargs) -> Any:
+        obj = RequestModel(**kwargs)
 
-    @property
-    def setter(self):
-        return StarliteClient(url=os.path.join(self.url, 'setter'))
+        ret = self._http.post(
+            self.url,
+            data=obj.json()
+        )
 
-    @property
-    def store(self):
-        return StarliteClient(url=os.path.join(self.url, 'store'))
-
-    def __getattr__(self, key):
-        def wrapper(**kwargs):
-            path = os.path.join(self.url, key)
-
-            obj = RequestModel(**kwargs)
-
-            ret = self._http.post(
-                path,
-                data=obj.json()
-            )
-
-            if ret.status_code == 201:
-                if ret.text != '':
-                    data = ret.json()
-                    ref = data.pop('ref', None)
-                    if ref is not None:
-                        return Ref(ref=ref)
-                    return Model.resolve(values=data)
-            else:
-                raise Exception(f"Failed to call remote method\n {ret.text}")
-        return wrapper
+        if ret.status_code == 201:
+            if ret.text != '':
+                data = ret.json()
+                if isinstance(data, dict) and 'model_name' in data:
+                    return resolve_model(values=data)
+                else:
+                    return data
+        elif ret.status_code == 500 or ret.status_code == 400:
+            data = ret.json()
+            logger.error(data.get('extra', None))
+            raise SystemError(data['detail'])
+        elif ret.status_code == 404:
+            logger.error(f"URL {self.url} is not found")
+            raise SystemError("Invalid url")
