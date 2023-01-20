@@ -10,6 +10,7 @@ from requests.packages.urllib3.util.retry import Retry
 
 from constelite.models import resolve_model
 
+from loguru import logger
 
 class RequestModel(BaseModel, extra=Extra.allow):
     pass
@@ -49,5 +50,10 @@ class StarliteClient:
                     return resolve_model(values=data)
                 else:
                     return data
-        elif ret.status_code == 500:
-            raise SystemError(ret.json()['detail'])
+        elif ret.status_code == 500 or ret.status_code == 400:
+            data = ret.json()
+            logger.error(data.get('extra', None))
+            raise SystemError(data['detail'])
+        elif ret.status_code == 404:
+            logger.error(f"URL {self.url} is not found")
+            raise SystemError("Invalid url")

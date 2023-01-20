@@ -3,7 +3,11 @@ from constelite.store.base import (
     BaseStore
 )
 from constelite.store.pickle import PickleStore
-from constelite.store.neoflux import NeofluxStore
+from constelite.store.neoflux import(
+    NeofluxStore,
+    NeoConfig,
+    InfluxConfig
+)
 from constelite.store.notion import NotionStore
 
 __all__ = [
@@ -13,5 +17,7 @@ __all__ = [
     'BaseStore',
     'PickleStore',
     'NeofluxStore',
+    'NeoConfig',
+    'InfluxConfig',
     'NotionStore'
 ]

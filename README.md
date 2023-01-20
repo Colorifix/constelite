@@ -4,13 +4,19 @@
 
 ### StateModel
 
-Model is just a class that is derived from `constelite.Model`, which is your ordinary `pydantic.BaseModel`.
+Model is just a class that is derived from `constelite.StateModel`, which is just a fancy `pydantic.BaseModel`.
 
 ### Store
 
+Store is a wrapper around a third-party API or a database. All stores share a standard interface, allowing to `put`, `patch`, `get`, `query` and `delete` state models.
+
 ### StoreRecord
 
+Represents a record of an entity in the store. It contains inofrmation about the store and has a unique identifier.
+
 ### Ref
+
+Represents a referene to a store record of an entity. Think of it as a pointer to a state model stored in a remote store.
 
 ### Protocol
 
@@ -27,7 +33,8 @@ Constelite uses `pydantic`. All models in constelite should be defined from `con
 
 
 ```python
-from constelite.models import StateModel
+from typing import Optional
+from constelite.models import Dynamic, StateModel
 
 
 class Message(StateModel):

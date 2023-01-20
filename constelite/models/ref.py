@@ -51,7 +51,7 @@ class Ref(GenericModel, Generic[M]):
             raise AttributeError
 
     def __setattr__(self, key, value):
-        if hasattr(self, key):
+        if key in self.__dict__:
             super().__setattr__(key, value)
         else:
             if self.state is None:
