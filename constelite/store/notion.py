@@ -90,7 +90,7 @@ class ModelHandler(BaseModel):
 
         for field_name, field in cls.__fields__.items():
             alias = field.alias
-            properties[alias] = page.get(alias)
+            properties[alias] = page.get(alias, cache=True)
 
         handler = cls(**properties)
 
@@ -307,7 +307,8 @@ class NotionStore(BaseStore):
     def execute_query(
             self,
             query: Query,
-            model_type: Type[StateModel]
+            model_type: Type[StateModel],
+            include_states: bool
     ) -> UID:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
         if isinstance(query, PropertyQuery):
@@ -321,6 +322,16 @@ class NotionStore(BaseStore):
                 filters=notion_filter
             )
 
-            return [page.page_id for page in pages]
+            uids = {}
+
+            if include_states is True:
+                for page in pages:
+                    handler = handler_cls.from_uid(uid=page.page_id)
+                    state = handler.to_state(model_type=model_type)
+                    uids[page.page_id] = state
+            else:
+                uids = {page.page_id: None for page in pages}
+
+            return uids
         else:
             raise ValueError("Unsupported query type")

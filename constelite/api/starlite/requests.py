@@ -65,3 +65,4 @@ class QueryRequest(BaseModel):
     query: Union[PropertyQuery]
     model_name: str
     store: StoreModel
+    include_states: Optional[bool] = False

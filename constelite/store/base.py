@@ -114,8 +114,9 @@ class BaseStore(StoreModel):
     def execute_query(
             self,
             query: Query,
-            model_type: Type[StateModel]
-    ) -> UID:
+            model_type: Type[StateModel],
+            include_states: bool
+    ) -> Dict[UID, Optional[StateModel]]:
         raise NotImplementedError
 
     def generate_ref(
@@ -390,7 +391,12 @@ class BaseStore(StoreModel):
             )
         )
 
-    def query(self, query: Query, model_name: str) -> List[Ref]:
+    def query(
+        self,
+        query: Query,
+        model_name: str,
+        include_states: bool
+    ) -> List[Ref]:
         self._validate_method('QUERY')
         model_type = get_auto_resolve_model(
             model_name=model_name,
@@ -398,14 +404,19 @@ class BaseStore(StoreModel):
         )
 
         if model_type is None:
-            raise ValueError(f"Unknoen model '{model_name}'")
+            raise ValueError(f"Unknown model '{model_name}'")
 
-        uids = self.execute_query(query=query, model_type=model_type)
+        uids = self.execute_query(
+            query=query,
+            model_type=model_type,
+            include_states=include_states
+        )
 
         return [
             self.generate_ref(
                 uid=uid,
-                state_model_name=model_name
+                state_model_name=model_name,
+                state=state
             )
-            for uid in uids
+            for uid, state in uids.items()
         ]

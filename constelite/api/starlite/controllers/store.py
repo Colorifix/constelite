@@ -58,4 +58,8 @@ class StoreController(Controller):
         if store is None:
             raise ValueError("Store not found")
 
-        return store.query(query=data.query, model_name=data.model_name)
+        return store.query(
+            query=data.query,
+            model_name=data.model_name,
+            include_states=data.include_states
+        )
