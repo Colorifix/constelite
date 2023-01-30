@@ -12,6 +12,7 @@ from constelite.models import resolve_model
 
 from loguru import logger
 
+
 class RequestModel(BaseModel, extra=Extra.allow):
     pass
 

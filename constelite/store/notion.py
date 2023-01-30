@@ -6,6 +6,10 @@ from python_notion_api import NotionAPI, NotionDatabase, NotionPage
 from python_notion_api.models.objects import ParentObject
 from python_notion_api.models.values import PropertyValue
 
+import python_notion_api.models.filters as filters
+from python_notion_api.models.filters import and_filter
+
+import python_notion_api.models.values as values
 from constelite.models import (
     StateModel,
     StaticTypes,
@@ -14,7 +18,23 @@ from constelite.models import (
     RelInspector
 )
 
-from constelite.store import BaseStore
+from constelite.store import BaseStore, Query, PropertyQuery
+
+
+filter_map = {
+    values.RelationPropertyValue: lambda p, v: (
+        filters.RelationFilter(
+            property=p,
+            contains=v
+        )
+    ),
+    values.TitlePropertyValue: lambda p, v: (
+        filters.RichTextFilter(
+            property=p,
+            equals=v
+        )
+    )
+}
 
 
 class ModelHandler(BaseModel):
@@ -66,7 +86,13 @@ class ModelHandler(BaseModel):
     def from_uid(cls, uid: UID) -> StateModel:
         page = cls.store.api.get_page(page_id=uid)
 
-        handler = cls(**page.properties)
+        properties = {}
+
+        for field_name, field in cls.__fields__.items():
+            alias = field.alias
+            properties[alias] = page.get(alias)
+
+        handler = cls(**properties)
 
         return handler
 
@@ -80,9 +106,29 @@ class ModelHandler(BaseModel):
 
         return cls(**props)
 
+    @classmethod
+    def notion_filter_from_property_query(cls, query: PropertyQuery):
+        filters = []
+
+        for prop_name, value in query.property_values.items():
+            field = cls.__fields__.get(prop_name, None)
+            if field is not None:
+                filter_factory = filter_map.get(field.type_, None)
+                if filter_factory is None:
+                    raise ValueError(
+                        f"Don't know how to filter by {field.type_}"
+                    )
+                filters.append(
+                    filter_factory(
+                        field.alias,
+                        value
+                    )
+                )
+        return and_filter(filters=filters)
+
 
 class NotionStore(BaseStore):
-    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
     model_handlers: Dict[Type[StateModel], Type[ModelHandler]] = {}
     access_token: str = Field(exclude=True)
     api: Optional[NotionAPI] = Field(exclude=True)
@@ -257,3 +303,24 @@ class NotionStore(BaseStore):
         handler = handler_cls.from_uid(uid=uid)
 
         return handler.to_state(model_type=model_type)
+
+    def execute_query(
+            self,
+            query: Query,
+            model_type: Type[StateModel]
+    ) -> UID:
+        handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
+        if isinstance(query, PropertyQuery):
+            notion_filter = handler_cls.notion_filter_from_property_query(
+                query=query
+            )
+            database = self.api.get_database(
+                database_id=handler_cls._database_id,
+            )
+            pages = database.query(
+                filters=notion_filter
+            )
+
+            return [page.page_id for page in pages]
+        else:
+            raise ValueError("Unsupported query type")

@@ -1,6 +1,6 @@
 from constelite.store.base import (
     Query, RefQuery, BackrefQuery,
-    BaseStore
+    BaseStore, PropertyQuery
 )
 from constelite.store.pickle import PickleStore
 from constelite.store.neoflux import(
@@ -13,6 +13,7 @@ from constelite.store.notion import NotionStore
 __all__ = [
     'Query',
     'RefQuery',
+    'PropertyQuery',
     'BackrefQuery',
     'BaseStore',
     'PickleStore',

@@ -15,11 +15,12 @@ from constelite.models import (
 
 
 class Query(BaseModel):
-    include_static: Optional[bool] = True
-    include_dynamic: Optional[bool] = True
-    include_associations: Optional[bool] = False
-    include_compositions: Optional[bool] = True
-    include_aggregations: Optional[bool] = True
+    # include_static: Optional[bool] = True
+    # include_dynamic: Optional[bool] = True
+    # include_associations: Optional[bool] = False
+    # include_compositions: Optional[bool] = True
+    # include_aggregations: Optional[bool] = True
+    pass
 
 
 class RefQuery(Query):
@@ -31,7 +32,11 @@ class BackrefQuery(RefQuery):
     backref_field_name: str
 
 
-StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE']
+class PropertyQuery(Query):
+    property_values: Dict[str, Any]
+
+
+StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
 
 
 class BaseStore(StoreModel):
@@ -104,6 +109,13 @@ class BaseStore(StoreModel):
         raise NotImplementedError
 
     def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
+        raise NotImplementedError
+
+    def execute_query(
+            self,
+            query: Query,
+            model_type: Type[StateModel]
+    ) -> UID:
         raise NotImplementedError
 
     def generate_ref(
@@ -378,5 +390,22 @@ class BaseStore(StoreModel):
             )
         )
 
-    def query(self, query: Query) -> List[Ref]:
-        return []
+    def query(self, query: Query, model_name: str) -> List[Ref]:
+        self._validate_method('QUERY')
+        model_type = get_auto_resolve_model(
+            model_name=model_name,
+            root_cls=StateModel
+        )
+
+        if model_type is None:
+            raise ValueError(f"Unknoen model '{model_name}'")
+
+        uids = self.execute_query(query=query, model_type=model_type)
+
+        return [
+            self.generate_ref(
+                uid=uid,
+                state_model_name=model_name
+            )
+            for uid in uids
+        ]

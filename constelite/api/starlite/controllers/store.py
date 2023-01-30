@@ -3,7 +3,8 @@ from starlite import Controller, post
 
 from constelite.models import StateModel, Ref
 from constelite.api.starlite.requests import (
-    PutRequest, PatchRequest, GetRequest, DeleteRequest
+    PutRequest, PatchRequest, GetRequest, DeleteRequest,
+    QueryRequest
 )
 
 
@@ -50,3 +51,11 @@ class StoreController(Controller):
         if store is None:
             raise ValueError("Store not found")
         return store.delete(ref)
+
+    @post('/query')
+    def query(self, data: QueryRequest, api: Any) -> None:
+        store = api.get_store(data.store.uid)
+        if store is None:
+            raise ValueError("Store not found")
+
+        return store.query(query=data.query, model_name=data.model_name)

@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, validator, root_validator
 
 from constelite.models import StoreModel, Ref, resolve_model
+from constelite.store.base import PropertyQuery
 
 
 def validate_state(ref: Ref) -> Ref:
@@ -58,3 +59,9 @@ class GetRequest(RefRequest):
 
 class DeleteRequest(RefRequest):
     pass
+
+
+class QueryRequest(BaseModel):
+    query: Union[PropertyQuery]
+    model_name: str
+    store: StoreModel
