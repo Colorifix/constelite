@@ -36,6 +36,17 @@ class StarliteClient:
     def __getattr__(self, key) -> "StarliteClient":
         return StarliteClient(url=os.path.join(self.url, key))
 
+    def resolve_return_value(self, data):
+        if isinstance(data, dict) and 'model_name' in data:
+            return resolve_model(values=data)
+        if isinstance(data, list):
+            return [
+                self.resolve_return_value(data=item)
+                for item in data
+            ]
+        else:
+            return data
+
     def __call__(self, **kwargs) -> Any:
         obj = RequestModel(**kwargs)
 
@@ -47,10 +58,7 @@ class StarliteClient:
         if ret.status_code == 201:
             if ret.text != '':
                 data = ret.json()
-                if isinstance(data, dict) and 'model_name' in data:
-                    return resolve_model(values=data)
-                else:
-                    return data
+                return self.resolve_return_value(data=data)
         elif ret.status_code == 500 or ret.status_code == 400:
             data = ret.json()
             logger.error(data.get('extra', None))

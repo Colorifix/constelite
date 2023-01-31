@@ -35,6 +35,17 @@ class BackrefQuery(RefQuery):
 class PropertyQuery(Query):
     property_values: Dict[str, Any]
 
+    def __init__(self, **data):
+        property_values = data.pop('property_values', None)
+        if property_values is None:
+            super().__init__(property_values=data)
+        else:
+            super().__init__(property_values=property_values)
+
+
+class GetAllQuery(Query):
+    pass
+
 
 StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
 
