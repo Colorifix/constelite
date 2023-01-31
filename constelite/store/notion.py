@@ -7,7 +7,7 @@ from python_notion_api.models.objects import ParentObject
 from python_notion_api.models.values import PropertyValue
 
 import python_notion_api.models.filters as filters
-from python_notion_api.models.filters import and_filter
+from python_notion_api.models.filters import and_filter, or_filter
 
 import python_notion_api.models.values as values
 
@@ -131,12 +131,19 @@ class ModelHandler(BaseModel):
                     raise ValueError(
                         f"Don't know how to filter by {field.type_}"
                     )
-                filters.append(
-                    filter_factory(
+                if isinstance(value, list):
+                    new_filter = or_filter(
+                        filters=[
+                            filter_factory(field.alias, item)
+                            for item in value
+                        ]
+                    )
+                else:
+                    new_filter = filter_factory(
                         field.alias,
                         value
                     )
-                )
+                filters.append(new_filter)
         return and_filter(filters=filters)
 
 
