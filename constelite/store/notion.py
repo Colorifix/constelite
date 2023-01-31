@@ -10,6 +10,9 @@ import python_notion_api.models.filters as filters
 from python_notion_api.models.filters import and_filter
 
 import python_notion_api.models.values as values
+
+from python_notion_api.models.iterators import PropertyItemIterator
+
 from constelite.models import (
     StateModel,
     StaticTypes,
@@ -83,15 +86,25 @@ class ModelHandler(BaseModel):
         )
 
     @classmethod
-    def from_uid(cls, uid: UID) -> StateModel:
-        page = cls.store.api.get_page(page_id=uid)
+    def from_page(cls, uid: UID, page: Optional[NotionPage] = None) -> StateModel:
+        if page is None:
+            page = cls.store.api.get_page(page_id=uid)
 
         properties = {}
 
         for field_name, field in cls.__fields__.items():
             alias = field.alias
-            properties[alias] = page.get(alias, cache=True)
-
+            property_value = page.get(alias, cache=True, safety_off=True)
+            if isinstance(property_value, PropertyItemIterator):
+                if property_value.property_type == "relation":
+                    property_value = values.RelationPropertyValue(
+                        init=property_value.value
+                    )
+                elif property_value.property_type == "rollup":
+                    property_value = values.RollupPropertyValue(
+                        init=property_value.value
+                    )
+            properties[alias] = property_value
         handler = cls(**properties)
 
         return handler
@@ -216,7 +229,7 @@ class NotionStore(BaseStore):
     ) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
-        handler = handler_cls.from_uid(uid=uid)
+        handler = handler_cls.from_page(uid=uid)
 
         state = handler.to_state(model_type=model_type)
 
@@ -244,7 +257,7 @@ class NotionStore(BaseStore):
 
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
-        handler = handler_cls.from_uid(uid=from_uid)
+        handler = handler_cls.from_page(uid=from_uid)
 
         state = handler.to_state(model_type=from_model_type)
 
@@ -274,7 +287,7 @@ class NotionStore(BaseStore):
             inspector: RelInspector) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
-        handler = handler_cls.from_uid(uid=from_uid)
+        handler = handler_cls.from_page(uid=from_uid)
 
         state = handler.to_state(model_type=from_model_type)
 
@@ -300,7 +313,7 @@ class NotionStore(BaseStore):
     ) -> StateModel:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
-        handler = handler_cls.from_uid(uid=uid)
+        handler = handler_cls.from_page(uid=uid)
 
         return handler.to_state(model_type=model_type)
 
@@ -326,7 +339,10 @@ class NotionStore(BaseStore):
 
             if include_states is True:
                 for page in pages:
-                    handler = handler_cls.from_uid(uid=page.page_id)
+                    handler = handler_cls.from_page(
+                        uid=page.page_id,
+                        page=page
+                    )
                     state = handler.to_state(model_type=model_type)
                     uids[page.page_id] = state
             else:
