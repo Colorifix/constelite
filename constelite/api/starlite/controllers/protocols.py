@@ -23,10 +23,14 @@ def generate_method(
         if isinstance(ret, StateModel):
             temp_store = getattr(api, 'temp_store', None)
 
+            ref = Ref[ret_model](state=ret)
+
             if temp_store is not None:
                 return temp_store.put(
-                    ref=Ref[ret_model](state=ret)
+                    ref=ref
                 )
+            else:
+                return ref
 
         return ret
 
