@@ -29,10 +29,11 @@ class StarliteAPI(ConsteliteAPI):
             ],
             exception_handlers={
             },
-            openapi_config=OpenAPIConfig(
-                title=self.name,
-                version=self.version
-            ),
+            # openapi_config=OpenAPIConfig(
+            #     title=self.name,
+            #     version=self.version
+            # ),
+            openapi_config=None,
             dependencies={"api": Provide(self.provide_api)}
         )
 
