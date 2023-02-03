@@ -42,6 +42,12 @@ filter_map = {
             property=p,
             contains=v
         )
+    ),
+    values.SelectPropertyValue: lambda p, v: (
+        filters.SelectFilter(
+            property=p,
+            equals=v
+        )
     )
 }
 
@@ -128,7 +134,6 @@ class ModelHandler(BaseModel):
     @classmethod
     def notion_filter_from_property_query(cls, query: PropertyQuery):
         filters = []
-
         for prop_name, value in query.property_values.items():
             field = cls.__fields__.get(prop_name, None)
             if field is not None:

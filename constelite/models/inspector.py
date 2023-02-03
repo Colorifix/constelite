@@ -13,7 +13,7 @@ from constelite.models.relationships import (
 from constelite.models.dynamic import Dynamic
 
 StaticTypes = Union[
-    float, int, str, bool, BaseModel,
+    str, float, int, bool, BaseModel,
     List[Union[int, str, bool, float]]
 ]
 
