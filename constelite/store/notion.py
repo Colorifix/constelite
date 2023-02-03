@@ -36,6 +36,12 @@ filter_map = {
             property=p,
             contains=v
         )
+    ),
+    values.RichTextPropertyValue: lambda p, v: (
+        filters.RichTextFilter(
+            property=p,
+            contains=v
+        )
     )
 }
 
