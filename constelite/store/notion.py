@@ -44,7 +44,7 @@ filter_map = {
         )
     ),
     values.SelectPropertyValue: lambda p, v: (
-        filters.SelectFilter(
+        filters.SeglectFilter(
             property=p,
             equals=v
         )
@@ -65,6 +65,16 @@ class ModelHandler(BaseModel):
             for field_name, field in self.__fields__.items()
             if getattr(self, field_name) is not None
         }
+
+    @staticmethod
+    def convert_rel(state: StateModel, field_name: str):
+        field_value = getattr(state, field_name)
+        if field_value is not None:
+            return [
+                ref.uid for ref in field_value
+            ]
+        else:
+            return None
 
     def create_page(self) -> UID:
         properties = self._to_prop_dict()
@@ -106,7 +116,8 @@ class ModelHandler(BaseModel):
 
         for field_name, field in cls.__fields__.items():
             alias = field.alias
-            property_value = page.get(alias, cache=True, safety_off=True)
+            safety_off = field.field_info.extra.get('safety_off', True)
+            property_value = page.get(alias, safety_off=safety_off)
             if isinstance(property_value, PropertyItemIterator):
                 if property_value.property_type == "relation":
                     property_value = values.RelationPropertyValue(
