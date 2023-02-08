@@ -44,9 +44,17 @@ filter_map = {
         )
     ),
     values.SelectPropertyValue: lambda p, v: (
-        filters.SeglectFilter(
+        filters.SelectFilter(
             property=p,
             equals=v
+        )
+    ),
+    values.RollupPropertyValue: lambda p, v: (
+        filters.RollupFilter(
+            property=p,
+            any=filters.RelationFilter(
+                contains=v
+            )
         )
     )
 }
