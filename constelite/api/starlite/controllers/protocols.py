@@ -50,7 +50,7 @@ def protocol_controller(api: "StarliteAPI") -> Controller:
 
     for protocol_model in api.protocols:
 
-        attrs[protocol_model.slug] = post(path=protocol_model.path, name='foo')(
+        attrs[protocol_model.slug] = post(path=protocol_model.path)(
             generate_method(protocol_model)
         )
 

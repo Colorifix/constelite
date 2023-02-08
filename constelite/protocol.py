@@ -37,11 +37,12 @@ class protocol:
     def __call__(self, fn):
         fn_name = fn.__name__
 
-        ret_model = fn.__annotations__.get('return', None)
-        if ret_model is None:
+        if 'return' not in fn.__annotations__:
             raise ValueError(
                 f'Getter function {fn_name} has no return type specified.'
             )
+
+        ret_model = fn.__annotations__['return']
 
         model = self._generate_model(fn)
 

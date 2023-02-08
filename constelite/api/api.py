@@ -2,7 +2,7 @@ import os
 import importlib
 import inspect
 
-from typing import Callable, Optional, List, Type
+from typing import Callable, Optional, List, Type, Dict, Any
 from pydantic import UUID4, BaseModel
 
 from constelite.models import Ref, StoreModel, StateModel
@@ -40,7 +40,8 @@ class ConsteliteAPI:
         host: Optional[str] = None,
         port: Optional[int] = None,
         stores: Optional[List[BaseStore]] = [],
-        temp_store: Optional[BaseStore] = None
+        temp_store: Optional[BaseStore] = None,
+        dependencies: Optional[Dict[str, Any]] = {}
     ):
         self.name = name
         self.version = version
@@ -48,12 +49,13 @@ class ConsteliteAPI:
         self.port = port
         self.stores = stores
         self.protocols = []
+        self._dependencies = dependencies
 
         if temp_store is not None:
             self.temp_store = temp_store
             self.stores.append(self.temp_store)
 
-    def discover_protocols(self, module_root: str, bind_path: str) -> None:
+    def discover_protocols(self, module_root: str, bind_path: str = "") -> None:
         """Discovers protocols in the given module
 
         Args:
@@ -90,7 +92,12 @@ class ConsteliteAPI:
             )
 
         for protocol_model in self.protocols:
-            module_path = protocol_model.fn.__module__.replace(
+            module_path = protocol_model.fn.__module__
+            module_path = ".".join(
+                [part for part in module_path.split('.')[:-1]]
+            )
+
+            module_path = module_path.replace(
                 module_root, ''
             ).replace(
                 '.', '/'
@@ -112,6 +119,9 @@ class ConsteliteAPI:
             ),
             None
         )
+
+    def get_dependency(self, key):
+        return self._dependencies.get(key, None)
 
     def get_state(self, ref: Ref, cache: bool = True) -> StateModel:
         """Retrieves a state of a reference from store
@@ -161,5 +171,5 @@ class ProtocolModel(BaseModel):
     name: Optional[str]
     fn: Callable
     fn_model: Type
-    ret_model: Type
+    ret_model: Optional[Type]
     slug: str
