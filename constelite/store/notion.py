@@ -179,8 +179,10 @@ class ModelHandler(BaseModel):
 
 class NotionStore(BaseStore):
     _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
-    model_handlers: Dict[Type[StateModel], Type[ModelHandler]] = {}
+
     access_token: str = Field(exclude=True)
+
+    model_handlers: Optional[Dict[Type[StateModel], Type[ModelHandler]]] = {}
     api: Optional[NotionAPI] = Field(exclude=True)
 
     class Config:
