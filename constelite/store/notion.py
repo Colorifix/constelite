@@ -34,13 +34,13 @@ filter_map = {
     values.TitlePropertyValue: lambda p, v: (
         filters.RichTextFilter(
             property=p,
-            contains=v
+            equals=v
         )
     ),
     values.RichTextPropertyValue: lambda p, v: (
         filters.RichTextFilter(
             property=p,
-            contains=v
+            equals=v
         )
     ),
     values.SelectPropertyValue: lambda p, v: (
