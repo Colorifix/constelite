@@ -25,7 +25,7 @@ class AutoResolveMeta(ModelMetaclass):
         return super().__new__(cls, name, bases, namespaces, **kwargs)
 
 
-class AutoResolveBaseModel(BaseModel, metaclass=AutoResolveMeta):
+class AutoResolveBaseModel(BaseModel):
     model_name: Optional[str]
 
     @root_validator()
