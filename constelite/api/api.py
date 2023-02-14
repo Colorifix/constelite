@@ -51,6 +51,8 @@ class ConsteliteAPI:
         self.protocols = []
         self._dependencies = dependencies
 
+        self.temp_store = None
+
         if temp_store is not None:
             self.temp_store = temp_store
             self.stores.append(self.temp_store)

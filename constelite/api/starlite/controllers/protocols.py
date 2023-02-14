@@ -50,8 +50,15 @@ def protocol_controller(api: "StarliteAPI") -> Controller:
 
     for protocol_model in api.protocols:
 
-        attrs[protocol_model.slug] = post(path=protocol_model.path)(
-            generate_method(protocol_model)
-        )
+        tags = []
+        path_parts = protocol_model.path.split('/')
+        if len(path_parts) > 1:
+            tags.extend(path_parts[:-1])
+
+        attrs[protocol_model.slug] = post(
+            path=protocol_model.path,
+            summary=protocol_model.name,
+            tags=tags
+        )(generate_method(protocol_model))
 
     return type("ProtocolController", (Controller,), attrs)

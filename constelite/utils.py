@@ -1,5 +1,7 @@
 import re
-from typing import Type, Literal
+from typing import Type, Literal, Union
+from typing import get_origin, get_args
+from typing_extensions import Annotated
 
 
 def resolve_forward_ref(forward_ref, root_cls):
@@ -23,3 +25,12 @@ def all_subclasses(cls):
         yield sub_cls
         for sub_sub_cls in all_subclasses(sub_cls):
             yield sub_sub_cls
+
+
+def is_optional(field):
+    return get_origin(field) is Union and \
+           type(None) in get_args(field)
+
+
+def is_annotated(field):
+    return get_origin(field) is Annotated

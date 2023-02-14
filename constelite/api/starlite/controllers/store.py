@@ -12,8 +12,14 @@ class StoreController(Controller):
     path = '/store'
     tags = ["Store"]
 
-    @post('/put')
+    @post('/put', summary="Put")
     def put(self, data: PutRequest, api: Any) -> Ref:
+        """
+        Put will attemp to create a new record in the store provided.
+
+        If passed reference has `record` defined, it will attempt to
+        overwrite the existing record with the provided state.
+        """
         ref = data.ref
         store = api.get_store(data.store.uid)
 
@@ -22,8 +28,18 @@ class StoreController(Controller):
 
         return store.put(ref)
 
-    @post('/patch')
+    @post('/patch', summary="Patch")
     def patch(self, data: PatchRequest, api: Any) -> Ref:
+        """
+        Patch will attemp update an existing store record.
+
+        All static properties will be overwritten along with any
+        `Association` type relationships.
+
+        Dynamic properties will be extended with the time points
+        provided in the state, so will any `Composition` and
+        `Aggregation` type relationships.
+        """
         ref = data.ref
 
         store = api.get_store(ref.record.store.uid)
@@ -32,8 +48,11 @@ class StoreController(Controller):
             raise ValueError("Store not found")
         return store.patch(ref)
 
-    @post('/get')
+    @post('/get', summary="Get")
     def get(self, data: GetRequest, api: Any) -> StateModel:
+        """
+        Get will try to retrieve a state of the existing record.
+        """
         ref = data.ref
         store = api.get_store(ref.record.store.uid)
 
@@ -42,8 +61,12 @@ class StoreController(Controller):
 
         return store.get(ref)
 
-    @post('/delete')
+    @post('/delete', summary="Delete")
     def delete(self, data: DeleteRequest, api: Any) -> None:
+        """
+        Delete will delete the existing record along with
+        the records linked by a `Composition` type relationship.
+        """
         ref = data.ref
 
         store = api.get_store(ref.record.store.uid)
@@ -52,8 +75,11 @@ class StoreController(Controller):
             raise ValueError("Store not found")
         return store.delete(ref)
 
-    @post('/query')
+    @post('/query', summary="Query")
     def query(self, data: QueryRequest, api: Any) -> None:
+        """
+        Query will return store records mathing the query parameters.
+        """
         store = api.get_store(data.store.uid)
         if store is None:
             raise ValueError("Store not found")
