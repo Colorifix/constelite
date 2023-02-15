@@ -1,7 +1,28 @@
-from typing import Optional, Dict, Any, Type
+from typing import Optional, Type
 from pydantic import BaseModel, root_validator, Extra
 
-from constelite.utils import all_subclasses
+from pydantic.main import ModelMetaclass
+
+from constelite.utils import is_optional, is_annotated
+
+
+class AutoResolveMeta(ModelMetaclass):
+    def __new__(cls, name, bases, namespaces, **kwargs):
+        annotations = namespaces.get('__annotations__', {})
+        for base in bases:
+            annotations.update(base.__annotations__)
+
+        for field_name, field_cls in annotations.items():
+            if (
+                not field_name.startswith('__')
+                and not is_optional(field_cls)
+                and not is_annotated(field_cls)
+            ):
+                annotations[field_name] = Optional[field_cls]
+
+        namespaces['__annotations__'] = annotations
+        namespaces['model_name'] = name
+        return super().__new__(cls, name, bases, namespaces, **kwargs)
 
 
 class AutoResolveBaseModel(BaseModel):
