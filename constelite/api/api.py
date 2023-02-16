@@ -37,16 +37,12 @@ class ConsteliteAPI:
         self,
         name: str,
         version: Optional[str] = None,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
         stores: Optional[List[BaseStore]] = [],
         temp_store: Optional[BaseStore] = None,
         dependencies: Optional[Dict[str, Any]] = {}
     ):
         self.name = name
         self.version = version
-        self.host = host
-        self.port = port
         self.stores = stores
         self.protocols = []
         self._dependencies = dependencies

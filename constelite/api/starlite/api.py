@@ -57,8 +57,6 @@ class StarliteAPI(ConsteliteAPI):
         return {
             "name": self.name,
             "version": self.version,
-            "host": self.host,
-            "port": self.port,
             "stores": self.stores,
             "temp_store": self.temp_store,
             "dependencies": self._dependencies
@@ -118,5 +116,5 @@ class StarliteAPI(ConsteliteAPI):
 
         return self.app
 
-    def run(self) -> None:
-        uvicorn.run(self.app, port=self.port, host=self.host)
+    def run(self, host: str, port: int) -> None:
+        uvicorn.run(self.app, port=port, host=host)
