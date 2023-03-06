@@ -44,6 +44,8 @@ class RelInspector(BaseModel):
 
         if to_refs is None:
             to_refs = []
+            print("Should have never landed here. Check line 47 in inspector.py")
+
         rel_type = field.type_
         rel_to_model = rel_type.model
         if isinstance(rel_to_model, ForwardRef):
@@ -126,7 +128,7 @@ class StateInspector(BaseModel):
                     field=field,
                     to_refs=value
                 )
-            else:
+            elif field_name != 'model_name':
                 static_props[field_name] = value
 
         return cls(

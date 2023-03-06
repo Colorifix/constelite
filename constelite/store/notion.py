@@ -1,5 +1,7 @@
 from typing import Type, Dict, Optional, List, ClassVar
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from python_notion_api import NotionAPI, NotionDatabase, NotionPage
@@ -118,7 +120,9 @@ class ModelHandler(BaseModel):
     @classmethod
     def from_page(cls, uid: UID, page: Optional[NotionPage] = None) -> StateModel:
         if page is None:
-            page = cls.store.api.get_page(page_id=uid)
+            page = cls.store.api.get_page(
+                page_id=uid.replace('-', '')
+            )
 
         properties = {}
 
@@ -384,9 +388,11 @@ class NotionStore(BaseStore):
                         page=page
                     )
                     state = handler.to_state(model_type=model_type)
-                    uids[page.page_id] = state
+                    uids[str(UUID(page.page_id))] = state
             else:
-                uids = {page.page_id: None for page in pages}
+                uids = {
+                    str(UUID(page.page_id)): None for page in pages
+                }
 
             return uids
         else:

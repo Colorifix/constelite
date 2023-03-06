@@ -10,7 +10,8 @@ from constelite.models import (
     StateModel, Ref,
     StaticTypes, Dynamic, RelInspector, StateInspector,
     StoreModel, StoreRecordModel, UID,
-    get_auto_resolve_model
+    get_auto_resolve_model,
+    Relationship
 )
 
 
@@ -422,6 +423,15 @@ class BaseStore(StoreModel):
             model_type=model_type,
             include_states=include_states
         )
+        # Experimental
+        #
+        # if include_states:
+        #     for field_name, field in model_type.__fields__.items():
+        #         if issubclass(field.type_, Relationship):
+        #             for uid, state in uids.items():
+        #                 rels = getattr(state, field_name)
+        #                 for ref in rels:
+        #                     ref.state = self.get(ref=ref)
 
         return [
             self.generate_ref(
