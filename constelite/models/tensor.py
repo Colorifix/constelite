@@ -34,6 +34,11 @@ class Tensor(GenericModel, Generic[S]):
     def pa_schema(cls):
         return cls.__fields__['tensor_schema'].type_.pa_schema
 
+    @classmethod
+    @property
+    def schema_cls(cls):
+        return cls.__fields__['tensor_schema'].type_
+
     @staticmethod
     def _generate_series(index: List[List], data: List,
                          index_names: List[str], name: str):

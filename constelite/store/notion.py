@@ -366,7 +366,6 @@ class NotionStore(BaseStore):
             model_type: Type[StateModel],
             include_states: bool
     ) -> UID:
-        # breakpoint()
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
         if isinstance(query, PropertyQuery):
             notion_filter = handler_cls.notion_filter_from_property_query(

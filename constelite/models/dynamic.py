@@ -56,8 +56,8 @@ class Dynamic(GenericModel, Generic[V]):
     @classmethod
     def from_series(cls, series: pd.Series):
         if issubclass(cls._point_type, Tensor):
-            tensor_schema_cls = cls._point_type._schema_cls
-            tensor_schema = cls._point_type._schema.pa_schema
+            tensor_schema_cls = cls._point_type.schema_cls
+            tensor_schema = cls._point_type.pa_schema
 
             value_type = None
             schema_indexes = []
@@ -85,10 +85,13 @@ class Dynamic(GenericModel, Generic[V]):
             points = []
 
             for timestamp in datetime_index:
+                tensor = Tensor[tensor_schema_cls].from_series(
+                    series[timestamp]
+                )
                 points.append(
                     TimePoint[Tensor[tensor_schema_cls]](
                         timestamp=timestamp.to_pydatetime().timestamp(),
-                        value=series[timestamp]
+                        value=tensor
                     )
                 )
             return cls(
