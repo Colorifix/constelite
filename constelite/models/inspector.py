@@ -128,7 +128,9 @@ class StateInspector(BaseModel):
                     field=field,
                     to_refs=value
                 )
-            elif field_name != 'model_name':
+            # Neoflux relies on model_name field to resolve the models
+            # elif field_name != 'model_name':
+            else:
                 static_props[field_name] = value
 
         return cls(

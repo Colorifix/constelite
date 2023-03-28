@@ -647,10 +647,10 @@ class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
             "auth": ("neo4j", "constelite")
         },
         influx_config={
-            "host": "127.0.0.1",
-            "port": 8087,
-            "username": None,
-            "password": None
+            "url": "127.0.0.1:8086",
+            "org": "my-org",
+            "bucket": "my-bucket",
+            "token": "token"
         }
     )
 

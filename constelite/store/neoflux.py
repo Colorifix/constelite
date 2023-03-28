@@ -22,7 +22,8 @@ from constelite.models import (
 )
 
 from py2neo import Graph, Node, Relationship
-from influxdb import InfluxDBClient
+from influxdb_client import InfluxDBClient
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 UID_FIELD = '_uid'
 LIVE_LABEL = "_LiveNode"
@@ -34,10 +35,14 @@ class NeoConfig(BaseModel):
 
 
 class InfluxConfig(BaseModel):
-    host: str
-    port: int
-    username: Optional[str]
-    password: Optional[str]
+    # host: str
+    # port: int
+    # username: Optional[str]
+    # password: Optional[str]
+    url: str
+    token: str
+    org: str
+    bucket: str
 
 
 class NeofluxStore(BaseStore):
@@ -55,9 +60,46 @@ class NeofluxStore(BaseStore):
     def __init__(self, **data):
         super().__init__(**data)
         self.graph = Graph(self.neo_config.url, auth=self.neo_config.auth)
-        self.influx = InfluxDBClient(**self.influx_config.dict())
-        self.influx.create_database("constelite")
-        self.influx.switch_database("constelite")
+        self.influx = InfluxDBClient(
+            url=self.influx_config.url,
+            token=self.influx_config.token,
+            org=self.influx_config.org
+        )
+
+    def write_points(self, points):
+        write_api = self.influx.write_api(write_options=SYNCHRONOUS)
+        write_api.write(
+            self.influx_config.bucket,
+            self.influx_config.org,
+            points
+        )
+
+    def query_points(self, query):
+        query_api = self.influx.query_api()
+        res = query_api.query_stream(
+            org=self.influx_config.org,
+            query=query
+        )
+        return list(res)
+
+    def delete_points(self, model_type, uid, field_name=None):
+        delete_api = self.influx.delete_api()
+
+        predicate = (
+            f'_measurement="{model_type.__name__}"'
+            f' AND _uid="{uid}"'
+        )
+
+        if field_name is not None:
+            predicate += f' AND _field="{field_name}"'
+
+        delete_api.delete(
+            org=self.influx_config.org,
+            bucket=self.influx_config.bucket,
+            start=datetime.datetime.utcfromtimestamp(0),
+            stop=datetime.datetime.utcnow(),
+            predicate=predicate
+        )
 
     def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         return self.graph.nodes.match(
@@ -198,7 +240,7 @@ class NeofluxStore(BaseStore):
                         "tags": tags
                     }
                 )
-        self.influx.write_points(points)
+        self.write_points(points)
 
     def influx_to_dynamic(
             self,
@@ -207,34 +249,32 @@ class NeofluxStore(BaseStore):
             field_name: str,
             point_type: Type,
     ) -> Dynamic:
+        query = (
+            f'from(bucket: "{self.influx_config.bucket}")'
+            f' |>range(start:0)'
+            f' |>filter(fn:(r) => r._field == "{field_name}")'
+            f' |>filter(fn:(r) => r._measurement == "{model_type.__name__}")'
+            f' |>filter(fn:(r) => r.{UID_FIELD} == "{uid}")'
+        )
+        points = list(self.query_points(query=query))
+        timepoints = []
+
         if issubclass(point_type, Tensor):
-            pa_schema = point_type.pa_schema
-
-            index_names_string = ",".join(
-                [
-                    f"{field_name}.{idx_name}"
-                    for idx_name in pa_schema.index.names
-                ]
+            df = pd.DataFrame(
+                data=[point.values for point in points]
             )
-
-            query = (
-                f"SELECT {field_name},{index_names_string}"
-                f" FROM {model_type.__name__}"
-                f" WHERE {UID_FIELD}='{uid}'"
-            )
-
-            points = list(self.influx.query(query).get_points(
-                measurement=model_type.__name__
-            ))
-
-            if len(points) == 0:
-                return None
-            else:
-                df = pd.DataFrame(data=points)
+            if df.empty is False:
+                df.drop(
+                    ['result', 'table', '_start', '_stop', '_measurement'],
+                    axis=1,
+                    inplace=True
+                )
 
                 df.columns = df.columns.map(
-                    lambda x: x.split('.')[1] if '.' in x else x
+                    lambda x: x.split(f'{field_name}.')[1] if '.' in x else x
                 )
+
+                pa_schema = point_type.pa_schema
 
                 for schema_idx in pa_schema.index.indexes:
                     df[schema_idx.name] = df[schema_idx.name].astype(
@@ -242,40 +282,30 @@ class NeofluxStore(BaseStore):
                     )
 
                 df.set_index(pa_schema.index.names, inplace=True)
-
-                time_groups = df.groupby('time')
-                timepoints = []
+                time_groups = df.groupby('_time')
 
                 for timestamp, time_group in time_groups:
-                    df = time_group.drop('time', axis=1)
+                    df = time_group.drop('_time', axis=1)
                     timepoint = TimePoint(
-                        timestamp=int(isoparse(timestamp).timestamp()),
-                        value=point_type.from_series(df[field_name])
+                        timestamp=int(timestamp.timestamp()),
+                        value=point_type.from_series(df['_value'])
                     )
 
                     timepoints.append(timepoint)
+
         else:
-            query = (
-                f"SELECT {field_name} FROM {model_type.__name__}"
-                f" WHERE {UID_FIELD}='{uid}'"
-            )
-
-            points = list(self.influx.query(query).get_points(
-                measurement=model_type.__name__
-            ))
-
-            if len(points) == 0:
-                return None
-
             timepoints = [
                 TimePoint(
-                    timestamp=int(isoparse(point['time']).timestamp()),
-                    value=point_type(point[field_name])
+                    timestamp=int(point.get_time().timestamp()),
+                    value=point.get_value()
                 )
                 for point in points
             ]
 
-        return Dynamic[point_type](points=timepoints)
+        if len(timepoints) == 0:
+            return None
+        else:
+            return Dynamic[point_type](points=timepoints)
 
     def delete_model(
             self,
@@ -284,12 +314,7 @@ class NeofluxStore(BaseStore):
         node = self.get_node(uid=uid)
         self.graph.delete(node)
 
-        self.influx.delete_series(
-            measurement=model_type.__name__,
-            tags={
-                UID_FIELD: uid
-            }
-        )
+        self.delete_points(model_type=model_type, uid=uid)
 
     def overwrite_static_props(
             self,
@@ -311,12 +336,17 @@ class NeofluxStore(BaseStore):
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         for prop_name, prop in props.items():
-            self.influx.delete_series(
-                measurement=model_type.__name__,
-                tags={
-                    UID_FIELD: uid,
-                    "_field": prop_name
-                }
+            # self.influx.delete_series(
+            #     measurement=model_type.__name__,
+            #     tags={
+            #         UID_FIELD: uid,
+            #         "_field": prop_name
+            #     }
+            # )
+            self.delete_points(
+                model_type=model_type,
+                uid=uid,
+                field_name=prop_name
             )
             self.write_dynamic_to_influx(
                 uid=uid,
@@ -409,4 +439,5 @@ class NeofluxStore(BaseStore):
                         **json.loads(node[field_name])
                     )
 
-        return resolve_model(values=data | rels)
+        return model_type(**data | rels)
+        # return resolve_model(values=data | rels)
