@@ -12,7 +12,7 @@ import pandas as pd
 
 from inspect import getmro
 
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, UUID4
 
 from constelite.store import BaseStore
 
@@ -35,10 +35,6 @@ class NeoConfig(BaseModel):
 
 
 class InfluxConfig(BaseModel):
-    # host: str
-    # port: int
-    # username: Optional[str]
-    # password: Optional[str]
     url: str
     token: str
     org: str

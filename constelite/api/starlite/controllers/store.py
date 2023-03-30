@@ -54,7 +54,12 @@ class StoreController(Controller):
         Get will try to retrieve a state of the existing record.
         """
         ref = data.ref
-        store = api.get_store(ref.record.store.uid)
+        if data.store is None:
+            store_uid = ref.record.store.uid
+        else:
+            store_uid = data.store.uid
+
+        store = api.get_store(store_uid)
 
         if store is None:
             raise ValueError("Store not found")

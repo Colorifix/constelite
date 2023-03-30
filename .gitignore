@@ -1,5 +1,6 @@
 **/.DS_Store
 **/*.pyc
+local_config.json
 examples/pickle_temp_store/store
 .config
 demo

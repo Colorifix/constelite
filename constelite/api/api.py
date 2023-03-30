@@ -7,6 +7,7 @@ from pydantic import UUID4, BaseModel
 
 from constelite.models import Ref, StoreModel, StateModel
 from constelite.store import BaseStore
+from constelite.guid_map import GUIDMap
 
 
 class ConsteliteAPI:
@@ -39,7 +40,8 @@ class ConsteliteAPI:
         version: Optional[str] = None,
         stores: Optional[List[BaseStore]] = [],
         temp_store: Optional[BaseStore] = None,
-        dependencies: Optional[Dict[str, Any]] = {}
+        dependencies: Optional[Dict[str, Any]] = {},
+        guid_map: Optional[GUIDMap] = None
     ):
         self.name = name
         self.version = version
@@ -52,6 +54,20 @@ class ConsteliteAPI:
         if temp_store is not None:
             self.temp_store = temp_store
             self.stores.append(self.temp_store)
+
+        self._guid_map = guid_map
+        self._guid_enabled = False
+
+    def enable_guid(self):
+        if self._guid_map is not None:
+            for store in self.stores:
+                store.set_guid_map(self._guid_map)
+        else:
+            raise ValueError("Enabling guid failed. No guid_map provided")
+
+    def disable_guid(self):
+        for store in self.stores:
+            store.disable_guid()
 
     def discover_protocols(self, module_root: str, bind_path: str = "") -> None:
         """Discovers protocols in the given module

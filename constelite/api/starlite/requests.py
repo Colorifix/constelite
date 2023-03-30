@@ -54,7 +54,7 @@ class PatchRequest(RefRequest):
 
 
 class GetRequest(RefRequest):
-    pass
+    store: Optional[StoreModel] = None
 
 
 class DeleteRequest(RefRequest):

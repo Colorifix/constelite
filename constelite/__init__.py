@@ -7,6 +7,7 @@ from constelite.models import StateModel, FlexibleModel, Ref
 
 from constelite.store import BaseStore
 
+from constelite.guid_map import GUIDMap
 
 __all__ = [
     'get_method_name',
@@ -17,4 +18,5 @@ __all__ = [
     'FlexibleModel',
     'BaseStore',
     'Ref',
+    'GUIDMap'
 ]

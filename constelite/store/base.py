@@ -1,18 +1,33 @@
 from typing import (
-    Dict, List, Optional, Literal, ClassVar, Callable, Type, Any
+    Dict,
+    List,
+    Optional,
+    Literal,
+    ClassVar,
+    Callable,
+    Type,
+    Any,
+    ForwardRef
 )
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, root_validator, PrivateAttr, UUID4
 
 from constelite.utils import all_subclasses
 
 from constelite.models import (
-    StateModel, Ref,
-    StaticTypes, Dynamic, RelInspector, StateInspector,
-    StoreModel, StoreRecordModel, UID,
-    get_auto_resolve_model,
-    Relationship
+    StateModel,
+    Ref,
+    StaticTypes,
+    Dynamic,
+    RelInspector,
+    StateInspector,
+    StoreModel,
+    StoreRecordModel,
+    UID,
+    get_auto_resolve_model
 )
+
+GUIDMap = ForwardRef("GUIDMap")
 
 
 class Query(BaseModel):
@@ -54,6 +69,50 @@ StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
 class BaseStore(StoreModel):
     _allowed_methods: ClassVar[
         List[StoreMethod]] = []
+
+    _guid_map: Optional[GUIDMap] = PrivateAttr(default=None)
+
+    def set_guid_map(self, guid_map: GUIDMap):
+        self._guid_map = guid_map
+
+    def disable_guid(self):
+        self._guid_map = None
+
+    def get_guid_record(self, uid: UID):
+        if self._guid_map is not None:
+            guid = self._guid_map.get_guid(
+                uid=uid,
+                store=self
+            )
+            if guid is None:
+                guid = self._guid_map.create_guid(
+                    uid=uid,
+                    store=self
+                )
+            return guid
+
+    def link_record(self, uid: UID, guid: UUID4):
+        if self._guid_map is not None:
+            existing_guid = self._guid_map.get_guid(uid=uid, store=self)
+
+            if existing_guid is not None:
+                if existing_guid != guid:
+                    raise ValueError('GUID mismatch')
+                else:
+                    return
+            if self._guid_map.guid_exists(guid=guid):
+                self._guid_map.link_uid(uid=uid, guid=guid, store=self)
+            else:
+                raise ValueError(
+                    f'Could not find entity {guid} in the guid map'
+                )
+
+    def delete_uid_record(self, uid: UID):
+        if self._guid_map is not None:
+            self._guid_map.delete_uid(
+                uid=uid,
+                store=self
+            )
 
     @root_validator(pre=True)
     def assign_name(cls, values):
@@ -135,15 +194,28 @@ class BaseStore(StoreModel):
         self,
         uid: UID,
         state_model_name: Optional[str] = None,
-        state: Optional[StateModel] = None
+        state: Optional[StateModel] = None,
+        guid: Optional[UUID4] = None
     ):
+
+        if guid is None:
+            guid = self.get_guid_record(
+                uid=uid
+            )
+        else:
+            self.link_record(uid=uid, guid=guid)
+
+        if guid is not None:
+            guid = str(guid)
+
         return Ref(
             record=StoreRecordModel(
                 store=self.dict(),
                 uid=uid
             ),
             state=state,
-            state_model_name=state_model_name
+            state_model_name=state_model_name,
+            guid=guid
         )
 
     def _validate_ref_uid(self, ref: Ref):
@@ -163,6 +235,8 @@ class BaseStore(StoreModel):
             raise KeyError('Ref does not exist in the store')
 
     def _validate_ref_full(self, ref: Ref):
+        self._fetch_record_by_guid(ref)
+
         if ref.record is None:
             raise ValueError("Reference does not have a store record")
         if ref.record.store.uid != self.uid:
@@ -170,6 +244,18 @@ class BaseStore(StoreModel):
                 'Reference store record is from a different store'
             )
         self._validate_ref_uid(ref=ref)
+
+    def _fetch_record_by_guid(self, ref: Ref):
+        if ref.guid is not None and self._guid_map is not None:
+            uid = self._guid_map.get_uid(guid=ref.guid, store=self)
+
+            if uid is not None:
+                ref.record = StoreRecordModel(
+                    store=self,
+                    uid=uid
+                )
+            else:
+                ref.record = None
 
     def _validate_method(self, method: StoreMethod):
         if method not in self._allowed_methods:
@@ -224,6 +310,8 @@ class BaseStore(StoreModel):
 
         inspector = StateInspector.from_state(ref.state)
 
+        self._fetch_record_by_guid(ref)
+
         if ref.record is None:
             uid = self.create_model(
                 model_type=inspector.model_type,
@@ -245,7 +333,8 @@ class BaseStore(StoreModel):
 
             return self.generate_ref(
                 uid=uid,
-                state_model_name=ref.state_model_name
+                state_model_name=ref.state_model_name,
+                guid=ref.guid
             )
 
         else:
@@ -282,10 +371,10 @@ class BaseStore(StoreModel):
                     overwrite=True,
                     delete_orphans=True
                 )
-
             return self.generate_ref(
                 uid=ref.uid,
-                state_model_name=ref.state_model_name
+                state_model_name=ref.state_model_name,
+                guid=ref.guid
             )
 
     def patch(self, ref: Ref) -> Ref:
@@ -333,7 +422,8 @@ class BaseStore(StoreModel):
 
         return self.generate_ref(
             uid=ref.uid,
-            state_model_name=ref.state_model_name
+            state_model_name=ref.state_model_name,
+            guid=ref.guid
         )
 
     def delete(self, ref: Ref) -> None:
@@ -381,6 +471,8 @@ class BaseStore(StoreModel):
                     model_type=rel.to_model
                 )
 
+        self.delete_uid_record(uid=ref.uid)
+
         self.delete_model(
             uid=ref.uid,
             model_type=model_type
@@ -393,7 +485,9 @@ class BaseStore(StoreModel):
         if ref.state_model_name == 'Any':
             model_type = Any
         else:
-            model_type = get_auto_resolve_model(model_name=ref.state_model_name)  
+            model_type = get_auto_resolve_model(
+                model_name=ref.state_model_name
+            )
 
         return self.generate_ref(
             uid=ref.record.uid,
