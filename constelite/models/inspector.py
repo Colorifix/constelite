@@ -58,6 +58,7 @@ class RelInspector(BaseModel):
             (
                 f for f in rel_to_model.__fields__.values()
                 if (
+                    isinstance(f.type_, type) and
                     issubclass(f.type_, Backref)
                     and (
                         type_name(f.type_.model)
@@ -104,7 +105,12 @@ class StateInspector(BaseModel):
             value = getattr(model, field_name)
             if value is None:
                 continue
-            if issubclass(field.type_, Backref):
+            if not isinstance(field.type_, type):
+                # some typing types, e.g. Literal, Union are not classes in
+                # the normal sense. Cannot run issubclass.
+                # Check first and save as a static prop.
+                static_props[field_name] = value
+            elif issubclass(field.type_, Backref):
                 pass
             elif issubclass(field.type_, Dynamic):
                 value = getattr(model, field_name)
