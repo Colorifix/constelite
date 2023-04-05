@@ -14,7 +14,7 @@ from inspect import getmro
 
 from pydantic import Field, BaseModel, UUID4
 
-from constelite.store import BaseStore
+from constelite.store import BaseStore, PropertyQuery
 
 from constelite.models import (
     StateModel, StaticTypes, Dynamic, UID,
@@ -42,7 +42,7 @@ class InfluxConfig(BaseModel):
 
 
 class NeofluxStore(BaseStore):
-    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
 
     neo_config: NeoConfig = Field(exclude=True)
     influx_config: InfluxConfig = Field(exclude=True)
@@ -437,3 +437,27 @@ class NeofluxStore(BaseStore):
 
         return model_type(**data | rels)
         # return resolve_model(values=data | rels)
+
+    def execute_query(self, query, model_type, include_states):
+        if isinstance(query, PropertyQuery):
+            res = self.graph.nodes.match(
+                model_type.__name__,
+                **query.property_values
+            ).all()
+
+            if include_states:
+                return {
+                    node.get(UID_FIELD): self.get_state_by_uid(
+                            uid=node.get(UID_FIELD),
+                            model_type=model_type
+                        )
+                    for node in res
+                }
+
+            else:
+                return {
+                    node.get(UID_FIELD): None
+                    for node in res
+                }
+        else:
+            raise ValueError("Can only process Property Queries")

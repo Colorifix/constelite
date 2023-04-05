@@ -66,3 +66,7 @@ class StarliteClient:
         elif ret.status_code == 404:
             logger.error(f"URL {self.url} is not found")
             raise SystemError("Invalid url")
+        else:
+            logger.error(
+                f"Failed to receive a response. {ret.status_code}: {ret.text}"
+            )
