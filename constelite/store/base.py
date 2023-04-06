@@ -219,6 +219,9 @@ class BaseStore(StoreModel):
         )
 
     def _validate_ref_uid(self, ref: Ref):
+        if ref.record is None:
+            raise ValueError("Can't validate uid of a ref withot a record")
+
         model_name = ref.state_model_name
         if model_name is None:
             raise ValueError("Unspecified ref.state_model_name")
@@ -302,6 +305,8 @@ class BaseStore(StoreModel):
 
     def put(self, ref: Ref) -> Ref:
         self._validate_method('PUT')
+        self._fetch_record_by_guid(ref)
+
         # For put inside _update_relations when relationship is a
         # reference to existing state
         if ref.state is None:
@@ -309,8 +314,6 @@ class BaseStore(StoreModel):
             return ref
 
         inspector = StateInspector.from_state(ref.state)
-
-        self._fetch_record_by_guid(ref)
 
         if ref.record is None:
             uid = self.create_model(

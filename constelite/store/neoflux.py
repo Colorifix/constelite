@@ -417,23 +417,26 @@ class NeofluxStore(BaseStore):
         data = dict(node)
 
         for field_name, field in model_type.__fields__.items():
-            if issubclass(field.type_, Dynamic):
-                point_type = field.type_._point_type
-                data[field_name] = self.influx_to_dynamic(
-                    uid=uid,
-                    model_type=model_type,
-                    field_name=field_name,
-                    point_type=point_type,
-                )
-            elif (
-                    issubclass(field.type_, BaseModel)
-                    and field_name in data
-            ):
-                json_str = data[field_name]
-                if json_str is not None:
-                    data[field_name] = field.type_(
-                        **json.loads(node[field_name])
+            if isinstance(field.type_, type):
+                # some typing types, e.g. Literal, Union are not classes in
+                # the normal sense. Cannot run issubclass.
+                if issubclass(field.type_, Dynamic):
+                    point_type = field.type_._point_type
+                    data[field_name] = self.influx_to_dynamic(
+                        uid=uid,
+                        model_type=model_type,
+                        field_name=field_name,
+                        point_type=point_type,
                     )
+                elif (
+                        issubclass(field.type_, BaseModel)
+                        and field_name in data
+                ):
+                    json_str = data[field_name]
+                    if json_str is not None:
+                        data[field_name] = field.type_(
+                            **json.loads(node[field_name])
+                        )
 
         return model_type(**data | rels)
         # return resolve_model(values=data | rels)

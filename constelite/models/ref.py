@@ -73,12 +73,14 @@ def ref(
         store: Optional[StoreModel] = None,
         guid: Optional[UUID4] = None
 ):
+    state_model_name = None
     if isinstance(model, StateModel):
         state = model
     elif isinstance(model, Ref):
         state = model.state
     else:
-        state = model()
+        state = None
+        state_model_name = model.__name__
 
     if uid is not None and store is not None:
         record = StoreRecordModel(
@@ -89,5 +91,6 @@ def ref(
         record = None
     return Ref(
         state=state,
-        record=record
+        record=record,
+        state_model_name=state_model_name
     )

@@ -31,7 +31,7 @@ class Relationship(GenericModel, Generic[M]):
             MT = resolve_forward_ref(MT, StateModel)
 
         class DummyModel(BaseModel):
-            v: List[Ref]
+            v: List[Ref[MT]]
 
         if v is None:
             v = []
