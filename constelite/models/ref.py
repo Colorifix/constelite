@@ -1,4 +1,5 @@
 from typing import Generic, TypeVar, Optional, Any, Union, Type
+from copy import deepcopy
 
 from pydantic.generics import GenericModel
 from pydantic import UUID4, validator, validate_arguments
@@ -64,6 +65,29 @@ class Ref(GenericModel, Generic[M]):
 
                 self.state = state_model()
             setattr(self.state, key, value)
+
+    def copy_ref(self):
+        """
+        The store may contain sockets (in the case of NeoFlux at least).
+        This is not compatible with normal deep copy.
+        Not overwriting __copy__ or __deepcopy__ methods because this function
+        is somewhere between the two.
+
+        Returns:
+            A copy of the class.
+            Somewhere between a shallow copy and a deepcopy.
+        """
+        try:
+            return deepcopy(self)
+        except TypeError as e:
+            # Can use the same store, just can't copy it.
+            # Copy everything else and just move the store across.
+            store = self.record.store
+            self.record.store = None
+            new_ref = deepcopy(self)
+            self.record.store = store
+            new_ref.record.store = store
+            return new_ref
 
 
 @validate_arguments

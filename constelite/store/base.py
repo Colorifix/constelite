@@ -220,7 +220,7 @@ class BaseStore(StoreModel):
 
     def _validate_ref_uid(self, ref: Ref):
         if ref.record is None:
-            raise ValueError("Can't validate uid of a ref withot a record")
+            raise ValueError("Can't validate uid of a ref without a record")
 
         model_name = ref.state_model_name
         if model_name is None:
@@ -237,8 +237,8 @@ class BaseStore(StoreModel):
         ):
             raise KeyError('Ref does not exist in the store')
 
-    def _validate_ref_full(self, ref: Ref):
-        self._fetch_record_by_guid(ref)
+    def _validate_ref_full(self, ref: Ref) -> Ref:
+        ref = self._fetch_record_by_guid(ref)
 
         if ref.record is None:
             raise ValueError("Reference does not have a store record")
@@ -247,11 +247,13 @@ class BaseStore(StoreModel):
                 'Reference store record is from a different store'
             )
         self._validate_ref_uid(ref=ref)
+        return ref
 
-    def _fetch_record_by_guid(self, ref: Ref):
+    def _fetch_record_by_guid(self, ref: Ref) -> Ref:
         if ref.guid is not None and self._guid_map is not None:
             uid = self._guid_map.get_uid(guid=ref.guid, store=self)
-
+            # Copy the ref before changing it.
+            ref = ref.copy_ref()
             if uid is not None:
                 ref.record = StoreRecordModel(
                     store=self,
@@ -259,6 +261,7 @@ class BaseStore(StoreModel):
                 )
             else:
                 ref.record = None
+        return ref
 
     def _validate_method(self, method: StoreMethod):
         if method not in self._allowed_methods:
@@ -305,7 +308,7 @@ class BaseStore(StoreModel):
 
     def put(self, ref: Ref) -> Ref:
         self._validate_method('PUT')
-        self._fetch_record_by_guid(ref)
+        ref = self._fetch_record_by_guid(ref)
 
         # For put inside _update_relations when relationship is a
         # reference to existing state
@@ -341,7 +344,7 @@ class BaseStore(StoreModel):
             )
 
         else:
-            self._validate_ref_full(ref)
+            ref = self._validate_ref_full(ref)
             self.overwrite_static_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
@@ -382,7 +385,7 @@ class BaseStore(StoreModel):
 
     def patch(self, ref: Ref) -> Ref:
         self._validate_method('PATCH')
-        self._validate_ref_full(ref=ref)
+        ref = self._validate_ref_full(ref=ref)
 
         if ref.state is None:
             return ref
@@ -432,7 +435,7 @@ class BaseStore(StoreModel):
     def delete(self, ref: Ref) -> None:
         self._validate_method('DELETE')
 
-        self._validate_ref_full(ref=ref)
+        ref = self._validate_ref_full(ref=ref)
 
         model_type = next(
             (
@@ -483,7 +486,7 @@ class BaseStore(StoreModel):
 
     def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
-        self._validate_ref_full(ref)
+        ref = self._validate_ref_full(ref)
 
         if ref.state_model_name == 'Any':
             model_type = Any
