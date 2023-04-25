@@ -91,7 +91,7 @@ class NeoGUIDMap(GUIDMap):
             entity_node,
             STORED_REL_LABEL,
             store_node,
-            uid=uid
+            uid=str(uid)
         )
         tx = self.graph.begin()
         tx.create(entity_node)
