@@ -2,6 +2,7 @@ from typing import Any
 
 import os
 
+import requests.exceptions
 from pydantic import BaseModel, Extra
 
 from requests import Session
@@ -47,13 +48,37 @@ class StarliteClient:
         else:
             return data
 
-    def __call__(self, **kwargs) -> Any:
+    def __call__(self, wait_for_response=True, **kwargs) -> Any:
+        """
+
+        Args:
+            wait_for_response: If False, will post the request but not wait
+              for the response to come back. Will return the string
+              "request sent".
+            **kwargs:
+
+        Returns:
+
+        """
         obj = RequestModel(**kwargs)
 
-        ret = self._http.post(
-            self.url,
-            data=obj.json()
-        )
+        if not wait_for_response:
+            try:
+                ret = self._http.post(
+                    self.url,
+                    data=obj.json(),
+                    # Large timeout for the connection
+                    # We don't wait for the response so small timeout for read
+                    timeout=(12.05, 0.001)
+                )
+            except requests.exceptions.ReadTimeout as e:
+                # Only catch the Read Timeout
+                return
+        else:
+            ret = self._http.post(
+                self.url,
+                data=obj.json(),
+            )
 
         if ret.status_code == 201:
             if ret.text != '':
