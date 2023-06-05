@@ -3,6 +3,7 @@ from constelite.store.base import (
     BaseStore, PropertyQuery
 )
 from constelite.store.pickle import PickleStore
+from constelite.store.memcached import MemcachedStore
 from constelite.store.neoflux import(
     NeofluxStore,
     NeoConfig,
@@ -20,5 +21,6 @@ __all__ = [
     'NeofluxStore',
     'NeoConfig',
     'InfluxConfig',
-    'NotionStore'
+    'NotionStore',
+    'MemcachedStore'
 ]

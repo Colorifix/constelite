@@ -9,7 +9,7 @@ from constelite.models import (
     Association, Composition, Aggregation,
     backref
 )
-from constelite.store import PickleStore, NeofluxStore
+from constelite.store import PickleStore, NeofluxStore, MemcachedStore
 
 
 class AbsorbanceSchema(TensorSchema):
@@ -652,6 +652,14 @@ class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
             "bucket": "my-bucket",
             "token": "token"
         }
+    )
+
+
+class TestMemcachedStore(unittest.TestCase, StoreTestMixIn):
+    # Run a local memcached instance to get this to work
+    store = MemcachedStore(
+        uid="ff992b34-223f-4c5e-8fbb-84ce1a7d21db",
+        host="localhost"
     )
 
 
