@@ -58,6 +58,12 @@ filter_map = {
                 contains=v
             )
         )
+    ),
+    values.StatusPropertyValue: lambda p, v: (
+        filters.StatusFilter(
+            property=p,
+            equals=v
+        )
     )
 }
 

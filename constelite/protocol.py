@@ -71,9 +71,9 @@ class Protocol(BaseModel):
     def get_model(cls):
         ret_model = cls.run.__annotations__.get('return', None)
 
-        def wrapper(**kwargs) -> ret_model:
+        def wrapper(api, **kwargs) -> ret_model:
             protocol = cls(**kwargs)
-            return protocol.run()
+            return protocol.run(api)
 
         slug = cls.get_slug()
 
