@@ -184,7 +184,11 @@ class ModelHandler(BaseModel):
                         value
                     )
                 filters.append(new_filter)
-        return and_filter(filters=filters)
+        if len(filters) > 1:
+            # Only add more nesting if needed. Notion limits to 2 levels.
+            return and_filter(filters=filters)
+        else:
+            return filters[0]
 
 
 class NotionStore(BaseStore):
