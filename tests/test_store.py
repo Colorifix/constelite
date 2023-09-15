@@ -629,6 +629,29 @@ class StoreTestMixIn():
             model_type=Bar
         ))
 
+    def test_delete_association(self):
+        r_bar = self.store.put(ref=ref(Bar(name='bar')))
+        r_foo = self.store.put(
+            ref=ref(
+                Foo(
+                    association=[r_bar]
+                )
+            )
+        )
+
+        self.store.delete(ref=r_foo)
+
+        self.assertFalse(
+            self.store.uid_exists(
+                uid=r_foo.uid,
+                model_type=Foo
+            )
+        )
+        self.assertTrue(self.store.uid_exists(
+            uid=r_bar.uid,
+            model_type=Bar
+        ))
+
 
 class TestPickleStore(unittest.TestCase, StoreTestMixIn):
     store = PickleStore(

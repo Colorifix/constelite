@@ -461,6 +461,7 @@ class BaseStore(StoreModel):
                     inspector.associations | inspector.aggregations).items():
             self.delete_all_relationships(
                 from_uid=ref.uid,
+                from_model_type=model_type,
                 rel_from_name=field_name
             )
 
