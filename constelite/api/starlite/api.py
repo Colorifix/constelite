@@ -98,7 +98,8 @@ class StarliteAPI(ConsteliteAPI):
                 and os.path.exists(self.static_dir)
             ):
                 static_files_config = StaticFilesConfig(
-                    path="/static", directories=[self.static_dir]
+                    path="/static", directories=[self.static_dir],
+                    html_mode=True
                 )
         self.app = Starlite(
             route_handlers=route_handlers,

@@ -1,4 +1,4 @@
-from typing import Type, Dict, Optional, List, ClassVar
+from typing import Type, Dict, Optional, List, ClassVar, get_args
 
 from uuid import UUID
 
@@ -11,7 +11,14 @@ from python_notion_api.models.values import PropertyValue
 import python_notion_api.models.filters as filters
 from python_notion_api.models.filters import and_filter, or_filter
 
-import python_notion_api.models.values as values
+from python_notion_api.models.values import (
+    RelationPropertyValue,
+    TitlePropertyValue,
+    RichTextPropertyValue,
+    SelectPropertyValue,
+    RollupPropertyValue,
+    StatusPropertyValue,
+)
 
 from python_notion_api.models.iterators import PropertyItemIterator
 
@@ -20,38 +27,39 @@ from constelite.models import (
     StaticTypes,
     Dynamic,
     UID,
-    RelInspector
+    RelInspector,
+    Relationship
 )
 
 from constelite.store import BaseStore, Query, PropertyQuery
 
 
 filter_map = {
-    values.RelationPropertyValue: lambda p, v: (
+    RelationPropertyValue: lambda p, v: (
         filters.RelationFilter(
             property=p,
             contains=v
         )
     ),
-    values.TitlePropertyValue: lambda p, v: (
+    TitlePropertyValue: lambda p, v: (
         filters.RichTextFilter(
             property=p,
             equals=v
         )
     ),
-    values.RichTextPropertyValue: lambda p, v: (
+    RichTextPropertyValue: lambda p, v: (
         filters.RichTextFilter(
             property=p,
             equals=v
         )
     ),
-    values.SelectPropertyValue: lambda p, v: (
+    SelectPropertyValue: lambda p, v: (
         filters.SelectFilter(
             property=p,
             equals=v
         )
     ),
-    values.RollupPropertyValue: lambda p, v: (
+    RollupPropertyValue: lambda p, v: (
         filters.RollupFilter(
             property=p,
             any=filters.RelationFilter(
@@ -59,7 +67,7 @@ filter_map = {
             )
         )
     ),
-    values.StatusPropertyValue: lambda p, v: (
+    StatusPropertyValue: lambda p, v: (
         filters.StatusFilter(
             property=p,
             equals=v
@@ -83,14 +91,44 @@ class ModelHandler(BaseModel):
         }
 
     @staticmethod
-    def convert_rel(state: StateModel, field_name: str):
-        field_value = getattr(state, field_name)
+    def to_notion_rel(field_value: Relationship):
         if field_value is not None:
             return [
                 ref.uid for ref in field_value
             ]
         else:
             return None
+
+    def to_state_rel(
+        self,
+        value: RelationPropertyValue,
+        state_model_name: str
+    ):
+        values = value.value
+        rel_value = None
+        if len(values) > 0:
+            rel_value = [
+                self.store.generate_ref(
+                    uid=uid,
+                    state_model_name=state_model_name
+                )
+                for uid in value.value
+            ]
+        return rel_value
+
+    def apply_template(self, page_id):
+        page = self.store.api.get_page(page_id=page_id)
+        template_id = getattr(self, "_template_id", None)
+        if template_id is not None:
+            template_page = self.store.api.get_page(page_id=template_id)
+            if page is not None:
+                breakpoint()
+                blocks = template_page.get_blocks()
+                block_list = list(blocks)
+
+                page.add_blocks(
+                    blocks=block_list
+                )
 
     def create_page(self) -> UID:
         properties = self._to_prop_dict()
@@ -106,6 +144,10 @@ class ModelHandler(BaseModel):
         data = request.json(by_alias=True, exclude_unset=True)
 
         new_page = self.store.api._post("pages", data=data)
+
+        # Disabled for now as Notion API does not support creation of
+        # linked databse blocks :(
+        # self.apply_template(new_page.page_id)
 
         return new_page.page_id
 
@@ -123,6 +165,16 @@ class ModelHandler(BaseModel):
             data=data
         )
 
+    @staticmethod
+    def get_field_constelite_name(field):
+        extra_info = field.field_info.extra
+        constelite_name = None
+        if 'json_schema_extra' in extra_info:
+            constelite_name = extra_info[
+                    'json_schema_extra'
+                ].get('constelite_name', None)
+        return constelite_name
+
     @classmethod
     def from_page(cls, uid: UID, page: Optional[NotionPage] = None) -> StateModel:
         if page is None:
@@ -135,14 +187,21 @@ class ModelHandler(BaseModel):
         for field_name, field in cls.__fields__.items():
             alias = field.alias
             safety_off = field.field_info.extra.get('safety_off', True)
-            property_value = page.get(alias, safety_off=safety_off)
+            try:
+                property_value = page.get(alias, safety_off=safety_off)
+            except ValueError as e:
+                raise ValueError(
+                    "Failed to get page property from"
+                    f" {cls.__name__}.{field_name}"
+                    f" with alias '{alias}'"
+                ) from e
             if isinstance(property_value, PropertyItemIterator):
                 if property_value.property_type == "relation":
-                    property_value = values.RelationPropertyValue(
+                    property_value = RelationPropertyValue(
                         init=property_value.value
                     )
                 elif property_value.property_type == "rollup":
-                    property_value = values.RollupPropertyValue(
+                    property_value = RollupPropertyValue(
                         init=property_value.value
                     )
             properties[alias] = property_value
@@ -150,13 +209,49 @@ class ModelHandler(BaseModel):
 
         return handler
 
+    def convert_to_state(self, state_type: Type[StateModel]):
+        props = {}
+        for field_name, field in self.__fields__.items():
+            field_type = field.type_
+            constelite_name = self.get_field_constelite_name(field)
+            if constelite_name is not None:
+                value = getattr(self, field_name)
+                if (
+                    field_type
+                    != RelationPropertyValue
+                ):
+                    props[constelite_name] = value.value
+                else:
+                    props[constelite_name] = self.to_state_rel(
+                        value=value,
+                        state_model_name=state_type.__fields__[
+                            constelite_name
+                        ].type_.model.__name__
+                    )
+        return state_type(**props)
+
     @classmethod
-    def from_values(cls, **values):
-        props = {
-            key: cls.__fields__[key].type_(init=value)
-            for key, value in values.items()
-            if value is not None
-        }
+    def from_values(cls, state=None, **values):
+        props = {}
+        for field_name, field in cls.__fields__.items():
+            field_type = field.type_
+            if field_name in values:
+                value = values[field_name]
+            else:
+                constelite_name = cls.get_field_constelite_name(field)
+                if (
+                    constelite_name is not None
+                    and state is not None
+                ):
+                    value = getattr(state, constelite_name)
+                    if field_type == RelationPropertyValue:
+                        value = cls.to_notion_rel(value)
+                else:
+                    continue
+            if value is None:
+                props[field_name] = None
+            else:
+                props[field_name] = field.type_(init=value)
 
         return cls(**props)
 
@@ -251,7 +346,6 @@ class NotionStore(BaseStore):
             model_type: Type[StateModel],
             props: Dict[str, StaticTypes]
     ) -> None:
-
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
         handler = handler_cls.from_state(

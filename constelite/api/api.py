@@ -134,6 +134,22 @@ class ConsteliteAPI:
             None
         )
 
+    def get_protocol(self, slug: str):
+        protocol = next(
+            (p for p in self.protocols if p.slug == slug),
+            None
+        )
+
+        return protocol
+
+    def run_protocol(self, slug: str, **kwargs):
+        protocol = self.get_protocol(slug=slug)
+
+        if protocol is None:
+            raise ValueError(f"Unknown protocol with slug {slug}")
+        else:
+            return protocol.fn(api=self, **kwargs)
+
     def get_dependency(self, key):
         return self._dependencies.get(key, None)
 
