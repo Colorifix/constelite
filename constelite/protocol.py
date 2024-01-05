@@ -48,7 +48,7 @@ class protocol:
 
         fn._protocol_model = ProtocolModel(
             name=self.name,
-            fn=fn,
+            fn=validate_arguments(fn),
             slug=fn.__name__,
             ret_model=ret_model,
             fn_model=model,

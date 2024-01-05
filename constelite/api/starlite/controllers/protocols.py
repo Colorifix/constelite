@@ -1,22 +1,24 @@
 from typing import Any, Callable
 from starlite import Controller, post
 
-from constelite.models import StateModel, Ref
+from constelite.models import StateModel, Ref, resolve_model
 from constelite.api import ProtocolModel
 
 
 def generate_method(
         protocol_model: ProtocolModel
         ) -> Callable[[StateModel, "StarliteAPI"], Any]:
-    fn_model = protocol_model.fn_model
     ret_model = protocol_model.ret_model
     fn = protocol_model.fn
 
-    def wrapper(self, data: fn_model, api: Any) -> ret_model:
-        kwargs = {
-            field_name: getattr(data, field_name, None)
-            for field_name in data.__fields__.keys()
-        }
+    def wrapper(self, data: Any, api: Any) -> ret_model:
+        kwargs = {}
+        for key, value in data.items():
+            if isinstance(value, dict) and 'model_name' in value:
+                kwargs[key] = resolve_model(value)
+            else:
+                kwargs[key] = value
+
         kwargs['api'] = api
         ret = fn(**kwargs)
 
