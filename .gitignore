@@ -4,3 +4,6 @@ local_config.json
 examples/pickle_temp_store/store
 .config
 demo
+colorifix_alpha/sa_cloud_storage.json
+colorifix_alpha/.config
+tds_template.pdf
