@@ -415,6 +415,8 @@ class NeofluxStore(BaseStore):
         node = self.get_node(uid=uid)
         rels = self.get_relations(node=node)
         data = dict(node)
+        # Remove the UID field. This isn't included in the state.
+        del data[UID_FIELD]
 
         for field_name, field in model_type.__fields__.items():
             if isinstance(field.type_, type):
