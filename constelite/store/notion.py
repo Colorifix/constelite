@@ -3,6 +3,7 @@ from typing import Type, Dict, Optional, List, ClassVar, get_args
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+import more_itertools
 
 from python_notion_api import NotionAPI, NotionDatabase, NotionPage
 from python_notion_api.models.objects import ParentObject
@@ -107,12 +108,16 @@ class ModelHandler(BaseModel):
         values = value.value
         rel_value = None
         if len(values) > 0:
+            # Rollup relations can be lists of lists and can contain duplicates
+            # Need to flatten lists and de-duplicate
+            # This will do no harm if already flat and unique
+            values = set(more_itertools.collapse(values))
             rel_value = [
                 self.store.generate_ref(
                     uid=uid,
                     state_model_name=state_model_name
                 )
-                for uid in value.value
+                for uid in values
             ]
         return rel_value
 
@@ -209,25 +214,41 @@ class ModelHandler(BaseModel):
 
         return handler
 
-    def convert_to_state(self, state_type: Type[StateModel]):
-        props = {}
+    def convert_to_state(self, state_type: Type[StateModel],
+                         **props):
+        """
+        Converts NotionHandler object to constelite state using
+        conversion rules.
+        You can override the conversion rules with the custom values
+        provided in `props`.
+
+        Args:
+            state_type:
+            props:
+
+        Returns:
+
+        """
         for field_name, field in self.__fields__.items():
             field_type = field.type_
             constelite_name = self.get_field_constelite_name(field)
-            if constelite_name is not None:
-                value = getattr(self, field_name)
-                if (
-                    field_type
-                    != RelationPropertyValue
-                ):
-                    props[constelite_name] = value.value
-                else:
-                    props[constelite_name] = self.to_state_rel(
-                        value=value,
-                        state_model_name=state_type.__fields__[
-                            constelite_name
-                        ].type_.model.__name__
-                    )
+            if constelite_name not in props:
+                if constelite_name is not None:
+                    value = getattr(self, field_name)
+                    if (
+                            (field_type == RelationPropertyValue)
+                            or
+                            (field_type == RollupPropertyValue and
+                             value.init[0].property_type == 'relation')
+                    ):
+                        props[constelite_name] = self.to_state_rel(
+                            value=value,
+                            state_model_name=state_type.__fields__[
+                                constelite_name
+                            ].type_.model.__name__
+                        )
+                    else:
+                        props[constelite_name] = value.value
         return state_type(**props)
 
     @classmethod
