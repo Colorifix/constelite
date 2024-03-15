@@ -1,7 +1,7 @@
 from typing import (
     Optional, Literal, List, Type, Union, TypeVar, Dict, ForwardRef
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictStr, StrictInt, StrictBool, StrictFloat
 from pydantic.fields import ModelField
 
 from constelite.utils import resolve_forward_ref
@@ -13,8 +13,8 @@ from constelite.models.relationships import (
 from constelite.models.dynamic import Dynamic
 
 StaticTypes = Union[
-    str, float, int, bool,
-    List[Union[int, str, bool, float]],
+    StrictStr, StrictInt, StrictBool, StrictFloat,
+    List[Union[StrictStr, StrictInt, StrictBool, StrictFloat]],
     BaseModel
 ]
 
@@ -45,7 +45,6 @@ class RelInspector(BaseModel):
 
         if to_refs is None:
             to_refs = []
-            print("Should have never landed here. Check line 47 in inspector.py")
 
         rel_type = field.type_
         rel_to_model = rel_type.model
@@ -82,6 +81,36 @@ class RelInspector(BaseModel):
             to_model=rel_to_model
         )
 
+    @classmethod
+    def from_backref(cls, field: ModelField, to_refs: Optional[List[Ref]]):
+
+        if to_refs is None:
+            to_refs = []
+
+        rel_type = field.type_
+        rel_to_model = rel_type.model
+        if isinstance(rel_to_model, ForwardRef):
+            rel_to_model = resolve_forward_ref(rel_to_model, StateModel)
+            if rel_to_model is None:
+                raise ValueError(
+                    "Can't find a StateModel matching {rel_type.model}"
+                )
+        # Do the inspection in the other direction to get the rel type
+        from_field_name = field.field_info.extra['from_field']
+        rel_inspector_fw = cls.from_field(
+            from_model_type=rel_to_model,
+            field=rel_to_model.__fields__[from_field_name],
+            to_refs=[]
+        )
+
+        return cls(
+            from_field_name=from_field_name,
+            to_field_name=field.name,
+            to_refs=to_refs,
+            rel_type=rel_inspector_fw.rel_type,
+            to_model=rel_to_model
+        )
+
 
 class StateInspector(BaseModel):
     model_type: Type[StateModel]
@@ -91,6 +120,7 @@ class StateInspector(BaseModel):
     associations: Dict[str, RelInspector]
     aggregations: Dict[str, RelInspector]
     compositions: Dict[str, RelInspector]
+    backrefs: Dict[str, RelInspector]
 
     model: StateModel
 
@@ -101,6 +131,7 @@ class StateInspector(BaseModel):
         associations = {}
         aggregations = {}
         compositions = {}
+        backrefs = {}
 
         for field_name, field in model.__class__.__fields__.items():
             value = getattr(model, field_name)
@@ -112,7 +143,10 @@ class StateInspector(BaseModel):
                 # Check first and save as a static prop.
                 static_props[field_name] = value
             elif issubclass(field.type_, Backref):
-                pass
+                backrefs[field_name] = RelInspector.from_backref(
+                    field=field,
+                    to_refs=value
+                )
             elif issubclass(field.type_, Dynamic):
                 value = getattr(model, field_name)
                 dynamic_props[field_name] = value
@@ -147,5 +181,6 @@ class StateInspector(BaseModel):
             associations=associations,
             aggregations=aggregations,
             compositions=compositions,
+            backrefs=backrefs,
             model=model
         )
