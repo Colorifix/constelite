@@ -2,12 +2,13 @@ import os
 import importlib
 import inspect
 
-from typing import Callable, Optional, List, Type, Dict, Any
+from typing import Callable, Optional, List, Type, Dict, Any, Union
 from pydantic.v1 import UUID4, BaseModel
 
 from constelite.models import Ref, StoreModel, StateModel
 from constelite.store import BaseStore
 from constelite.guid_map import GUIDMap
+from constelite.loggers.base_logger import LoggerConfig, Logger
 
 
 class ConsteliteAPI:
@@ -41,7 +42,8 @@ class ConsteliteAPI:
         stores: Optional[List[BaseStore]] = [],
         temp_store: Optional[BaseStore] = None,
         dependencies: Optional[Dict[str, Any]] = {},
-        guid_map: Optional[GUIDMap] = None
+        guid_map: Optional[GUIDMap] = None,
+        loggers: Optional[List[Type[Logger]]] = None
     ):
         self.name = name
         self.version = version
@@ -58,6 +60,8 @@ class ConsteliteAPI:
         self._guid_map = guid_map
         self._guid_enabled = False
 
+        self.loggers = loggers
+
     def enable_guid(self):
         if self._guid_map is not None:
             for store in self.stores:
@@ -68,6 +72,39 @@ class ConsteliteAPI:
     def disable_guid(self):
         for store in self.stores:
             store.disable_guid()
+
+    def get_logger(self,
+                   logger_config: Optional[Union[LoggerConfig, dict]]
+                   ) -> Logger:
+        """
+        Creates a logger instance. Gets the logger class by matching the name
+        in the logger_config to the logger class name.
+        The default logger is just outputting to loguru.logger
+        Args:
+            logger_config: LoggerConfig instance or the equivalent dictionary.
+
+        Returns:
+
+        """
+        if logger_config is None:
+            logger_cls = Logger  # Default option. Needs no kwargs.
+            logger_kwargs = {}
+        else:
+            if isinstance(logger_config, LoggerConfig):
+                logger_config = logger_config.dict()
+            logger_cls = next(
+                (l for l in self.loggers if l.__name__ ==
+                 logger_config['logger_name']),
+                None
+            )
+            if logger_cls is None:
+                raise ValueError(
+                    f"Don't recognise the logger cls with name"
+                    f" {logger_config['logger_name']}"
+                )
+            logger_kwargs = logger_config['logger_kwargs']
+
+        return logger_cls(api=self, **logger_kwargs)
 
     def discover_protocols(self, module_root: str, bind_path: str = "") -> None:
         """Discovers protocols in the given module

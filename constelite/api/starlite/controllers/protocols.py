@@ -1,4 +1,5 @@
 from typing import Any, Callable
+import inspect
 from litestar import Controller, post
 
 from constelite.models import StateModel, Ref, resolve_model
@@ -10,9 +11,14 @@ def generate_method(
         ) -> Callable[[StateModel, "StarliteAPI"], Any]:
     ret_model = protocol_model.ret_model
     fn = protocol_model.fn
+    fn_model = protocol_model.fn_model
 
     def wrapper(self, data: Any, api: Any) -> ret_model:
         kwargs = {}
+        if "logger" in inspect.signature(fn).parameters or \
+                "logger" in fn_model.__annotations__:
+            kwargs["logger"] = api.get_logger(data.pop("logger", None))
+
         for key, value in data.items():
             if isinstance(value, dict) and 'model_name' in value:
                 kwargs[key] = resolve_model(value)
