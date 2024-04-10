@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import UUID4, BaseModel
+from pydantic.v1 import UUID4, BaseModel
 
 from constelite.models import UID
 

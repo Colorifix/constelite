@@ -1,8 +1,8 @@
 from typing import Generic, TypeVar, Optional, Any, Union, Type
 from copy import deepcopy
 
-from pydantic.generics import GenericModel
-from pydantic import UUID4, validator, validate_arguments
+from pydantic.v1.generics import GenericModel
+from pydantic.v1 import UUID4, validator, validate_arguments
 
 from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel, StoreModel

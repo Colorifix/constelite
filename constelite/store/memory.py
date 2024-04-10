@@ -1,6 +1,6 @@
 from typing import Optional, Type, Dict
 
-from pydantic import Field
+from pydantic.v1 import Field
 
 from constelite.models import (
     StateModel, UID

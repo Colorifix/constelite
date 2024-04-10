@@ -1,6 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import BaseModel, validator, root_validator
+from pydantic.v1 import BaseModel, validator, root_validator
 
 from constelite.models import StoreModel, Ref, resolve_model
 from constelite.store.base import PropertyQuery

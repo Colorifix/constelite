@@ -2,7 +2,7 @@ from typing import Dict, List
 import os
 import toml
 
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 from constelite.models.store import StoreModel
 

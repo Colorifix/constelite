@@ -1,8 +1,8 @@
 import datetime
 
 from typing import TypeVar, Generic, List, Type
-from pydantic import validator
-from pydantic.generics import GenericModel
+from pydantic.v1 import validator
+from pydantic.v1.generics import GenericModel
 
 import pandera as pa
 import pandas as pd

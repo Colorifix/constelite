@@ -2,7 +2,7 @@ from typing import Optional
 
 from uuid import uuid4
 
-from pydantic import UUID4, Field
+from pydantic.v1 import UUID4, Field
 
 from constelite.models import UID
 from constelite.guid_map import GUIDMap

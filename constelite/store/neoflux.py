@@ -12,7 +12,7 @@ import pandas as pd
 
 from inspect import getmro
 
-from pydantic import Field, BaseModel, UUID4
+from pydantic.v1 import Field, BaseModel, UUID4
 
 from constelite.store import BaseStore, PropertyQuery
 

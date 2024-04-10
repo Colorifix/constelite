@@ -1,8 +1,8 @@
 from typing import Generic, List, TypeVar, ForwardRef, Optional
 from typing_extensions import Annotated
 
-from pydantic import BaseModel, Field
-from pydantic.generics import GenericModel
+from pydantic.v1 import BaseModel, Field
+from pydantic.v1.generics import GenericModel
 
 from constelite.utils import resolve_forward_ref
 

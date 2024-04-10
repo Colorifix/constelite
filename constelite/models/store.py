@@ -1,6 +1,6 @@
 from typing import Optional
 from constelite.models.auto_resolve import AutoResolveBaseModel
-from pydantic import UUID4, BaseModel
+from pydantic.v1 import UUID4, BaseModel
 
 UID = str
 

@@ -1,7 +1,7 @@
 from typing import Optional, Type
-from pydantic import BaseModel, root_validator, Extra
+from pydantic.v1 import BaseModel, root_validator, Extra
 
-from pydantic.main import ModelMetaclass
+from pydantic.v1.main import ModelMetaclass
 
 from constelite.utils import is_optional, is_annotated
 

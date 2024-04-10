@@ -1,6 +1,6 @@
 from constelite.models.model import StateModel
 
-from pydantic.generics import GenericModel
+from pydantic.v1.generics import GenericModel
 from typing import Generic, TypeVar, List, Union
 
 

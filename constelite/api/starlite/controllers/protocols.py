@@ -1,5 +1,5 @@
 from typing import Any, Callable
-from starlite import Controller, post
+from litestar import Controller, post
 
 from constelite.models import StateModel, Ref, resolve_model
 from constelite.api import ProtocolModel
@@ -60,7 +60,8 @@ def protocol_controller(api: "StarliteAPI") -> Controller:
         attrs[protocol_model.slug] = post(
             path=protocol_model.path,
             summary=protocol_model.name,
-            tags=tags
+            tags=tags,
+            sync_to_thread=True
         )(generate_method(protocol_model))
 
     return type("ProtocolController", (Controller,), attrs)

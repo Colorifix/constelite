@@ -2,7 +2,7 @@ from typing import Type, Dict, Optional, List, ClassVar, get_args
 
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 import more_itertools
 
 from python_notion_api import NotionAPI, NotionDatabase, NotionPage

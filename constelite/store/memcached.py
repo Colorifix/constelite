@@ -1,5 +1,5 @@
 from typing import Type, Optional
-from pydantic import Field
+from pydantic.v1 import Field
 
 from constelite.models import (
     StateModel, UID, resolve_model

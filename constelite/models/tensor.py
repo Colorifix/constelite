@@ -2,8 +2,8 @@ from typing import TypeVar, Generic, List, Optional, ClassVar, Any
 
 from functools import reduce
 
-from pydantic import BaseModel, Field, validator, root_validator
-from pydantic.generics import GenericModel
+from pydantic.v1 import BaseModel, Field, validator, root_validator
+from pydantic.v1.generics import GenericModel
 
 
 import pandera as pa

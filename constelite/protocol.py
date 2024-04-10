@@ -2,7 +2,7 @@ from typing import Any, Optional
 from inspect import signature, Parameter
 import re
 
-from pydantic import BaseModel, validate_arguments, create_model
+from pydantic.v1 import BaseModel, validate_arguments, create_model
 
 from constelite.api import ProtocolModel
 

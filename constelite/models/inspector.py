@@ -1,8 +1,8 @@
 from typing import (
     Optional, Literal, List, Type, Union, TypeVar, Dict, ForwardRef
 )
-from pydantic import BaseModel, StrictStr, StrictInt, StrictBool, StrictFloat
-from pydantic.fields import ModelField
+from pydantic.v1 import BaseModel, StrictStr, StrictInt, StrictBool, StrictFloat
+from pydantic.v1.fields import ModelField
 
 from constelite.utils import resolve_forward_ref
 from constelite.models.model import StateModel

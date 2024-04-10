@@ -3,7 +3,7 @@ from typing import Any
 import os
 
 import requests.exceptions
-from pydantic import BaseModel, Extra
+from pydantic.v1 import BaseModel, Extra
 
 from requests import Session
 from requests.adapters import HTTPAdapter

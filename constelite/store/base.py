@@ -10,7 +10,7 @@ from typing import (
     ForwardRef
 )
 
-from pydantic import BaseModel, root_validator, PrivateAttr, UUID4
+from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4
 
 from constelite.utils import all_subclasses
 

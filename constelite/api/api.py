@@ -3,7 +3,7 @@ import importlib
 import inspect
 
 from typing import Callable, Optional, List, Type, Dict, Any
-from pydantic import UUID4, BaseModel
+from pydantic.v1 import UUID4, BaseModel
 
 from constelite.models import Ref, StoreModel, StateModel
 from constelite.store import BaseStore

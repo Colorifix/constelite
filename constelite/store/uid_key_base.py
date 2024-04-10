@@ -6,7 +6,7 @@ import pickle
 
 from uuid import uuid4
 
-from pydantic import Field
+from pydantic.v1 import Field
 
 from constelite.models import (
     StateModel, UID, TimePoint, Dynamic,
