@@ -3,6 +3,7 @@ from typing import Optional, ForwardRef, List
 
 import pandera as pa
 
+from colorifix_alpha.util import get_config
 from constelite.models import (
     StateModel, ref, Dynamic, TimePoint,
     Tensor, TensorSchema,
@@ -655,25 +656,25 @@ class StoreTestMixIn():
 
 class TestPickleStore(unittest.TestCase, StoreTestMixIn):
     store = PickleStore(
-        uid="4a0929bb-d691-4f04-81f9-4780897e959f",
+        uid=get_config("stores", "pickle_store", "uid"),
         name="Pickle Rick",
-        path="/Users/md/store"
+        path=get_config("stores", "pickle_store", "path")
     )
 
 
 class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
     store = NeofluxStore(
-        uid="78be519a-fdec-4e4a-85a5-26364ccf52e4",
+        uid=get_config("stores", "neoflux_store", "uid"),
         name="StarGate",
         neo_config={
-            "url": "bolt://127.0.0.1:7697",
-            "auth": ("neo4j", "constelite")
+            "url": get_config("stores", "neoflux_store", "neo_config", "url"),
+            "auth": get_config("stores", "neoflux_store", "neo_config", "auth")
         },
         influx_config={
-            "url": "127.0.0.1:8086",
-            "org": "my-org",
-            "bucket": "my-bucket",
-            "token": "token"
+            "url": get_config("stores", "neoflux_store", "influx_config", "url"),
+            "org": get_config("stores", "neoflux_store", "influx_config", "org"),
+            "bucket": get_config("stores", "neoflux_store", "influx_config", "bucket"),
+            "token": get_config("stores", "neoflux_store", "influx_config", "token")
         }
     )
 
@@ -681,8 +682,8 @@ class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
 class TestMemcachedStore(unittest.TestCase, StoreTestMixIn):
     # Run a local memcached instance to get this to work
     store = MemcachedStore(
-        uid="ff992b34-223f-4c5e-8fbb-84ce1a7d21db",
-        host="localhost"
+        uid=get_config("stores", "memcached_store", "uid"),
+        host=get_config("stores", "memcached_store", "host"),
     )
 
 

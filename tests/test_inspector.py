@@ -9,43 +9,43 @@ from constelite.models import (
 from constelite.models import StateInspector
 
 
-class Bar(StateModel):
+class BarInspector(StateModel):
     name: str
 
 
-class Baz(StateModel):
+class BazInspector(StateModel):
     name: str
-    foo: backref(model="Foo", from_field="baz")
+    foo: backref(model="FooInspector", from_field="baz")
 
 
-class Foo(StateModel):
+class FooInspector(StateModel):
     int_field: Optional[int]
     str_field: Optional[str]
     bool_field: Optional[bool]
     float_field: Optional[float]
-    model_field: Optional[Bar]
+    model_field: Optional[BarInspector]
     list_field: Optional[List[int]]
     extra_field: Optional[int]
 
     dynamic_int: Optional[Dynamic[int]]
 
-    self_association: Optional[Association[ForwardRef("Foo")]]
-    association: Optional[Association[Bar]]
-    composition: Optional[Composition[Bar]]
-    aggregation: Optional[Aggregation[Bar]]
-    baz: Optional[Association[Baz]]
+    self_association: Optional[Association[ForwardRef("FooInspector")]]
+    association: Optional[Association[BarInspector]]
+    composition: Optional[Composition[BarInspector]]
+    aggregation: Optional[Aggregation[BarInspector]]
+    baz: Optional[Association[BazInspector]]
 
 
-Baz.fix_backrefs()
+BazInspector.fix_backrefs()
 
 
 class TestInspector(unittest.TestCase):
 
     def test_rel_inspection(self):
-        foo = Foo(
-            association=[ref(Bar(name='association'))],
-            composition=[ref(Bar(name='composition'))],
-            aggregation=[ref(Bar(name='aggregation'))]
+        foo = FooInspector(
+            association=[ref(BarInspector(name='association'))],
+            composition=[ref(BarInspector(name='composition'))],
+            aggregation=[ref(BarInspector(name='aggregation'))]
         )
 
         inspector = StateInspector.from_state(foo)
@@ -78,8 +78,8 @@ class TestInspector(unittest.TestCase):
         )
 
     def test_ref_with_backref(self):
-        foo = Foo(
-            baz=[ref(Baz(name='baz'))]
+        foo = FooInspector(
+            baz=[ref(BazInspector(name='baz'))]
         )
 
         inspector = StateInspector.from_state(foo)
@@ -89,9 +89,9 @@ class TestInspector(unittest.TestCase):
         self.assertEqual(inspector.associations['baz'].to_field_name, 'foo')
 
     def test_backref(self):
-        baz = Baz(
+        baz = BazInspector(
             name='baz',
-            foo=[ref(Foo())]
+            foo=[ref(FooInspector())]
         )
 
         inspector = StateInspector.from_state(baz)
@@ -101,8 +101,8 @@ class TestInspector(unittest.TestCase):
         self.assertEqual(inspector.backrefs['foo'].to_field_name, 'foo')
 
     def test_forward_ref(self):
-        foo = Foo(
-            self_association=[ref(Foo())]
+        foo = FooInspector(
+            self_association=[ref(FooInspector())]
         )
 
         inspector = StateInspector.from_state(foo)
@@ -123,10 +123,10 @@ class TestInspector(unittest.TestCase):
             str_field='str',
             bool_field=True,
             float_field=1.5,
-            model_field=Bar(name='bar'),
-            model_name='Foo'
+            model_field=BarInspector(name='bar'),
+            model_name='FooInspector'
         )
-        foo = Foo(**static_values)
+        foo = FooInspector(**static_values)
 
         inspector = StateInspector.from_state(foo)
 
@@ -145,7 +145,7 @@ class TestInspector(unittest.TestCase):
                 )
             ]
         )
-        foo = Foo(
+        foo = FooInspector(
             dynamic_int=value
         )
 

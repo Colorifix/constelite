@@ -1,5 +1,5 @@
 from typing import (
-    Optional, Literal, List, Type, Union, TypeVar, Dict, ForwardRef
+    Optional, Literal, List, Set, Type, Union,  Dict, ForwardRef
 )
 from pydantic.v1 import BaseModel, StrictStr, StrictInt, StrictBool, StrictFloat
 from pydantic.v1.fields import ModelField
@@ -8,18 +8,17 @@ from constelite.utils import resolve_forward_ref
 from constelite.models.model import StateModel
 from constelite.models.ref import Ref
 from constelite.models.relationships import (
-    Relationship, Association, Aggregation, Composition, Backref
+    Association, Aggregation, Composition, Backref
 )
 from constelite.models.dynamic import Dynamic
+
 
 StaticTypes = Union[
     StrictStr, StrictInt, StrictBool, StrictFloat, str,
     List[Union[StrictStr, StrictInt, StrictBool, StrictFloat, str]],
+    Set[Union[StrictStr, StrictInt, StrictBool, StrictFloat, str]],
     BaseModel
 ]
-
-
-M = TypeVar('Model')
 
 
 def type_name(model: Union[Type[StateModel], ForwardRef]) -> str:

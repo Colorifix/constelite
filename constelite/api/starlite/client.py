@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import os
 
@@ -21,8 +21,9 @@ class RequestModel(BaseModel, extra=Extra.allow):
 class StarliteClient:
     """A python client for communicating with the Starlite API
     """
-    def __init__(self, url: str):
+    def __init__(self, url: str, token: Optional[str] = None):
         self.url = url
+        self.token = token or os.environ.get('CONSTELITE_TOKEN', None)
         retry_strategy = Retry(
             total=3,
             status_forcelist=[429, 500, 502, 503, 504],
@@ -35,7 +36,8 @@ class StarliteClient:
         self._http.mount("https://", adapter)
 
     def __getattr__(self, key) -> "StarliteClient":
-        return StarliteClient(url=os.path.join(self.url, key))
+        return StarliteClient(url=os.path.join(self.url, key),
+                              token=self.token)
 
     def resolve_return_value(self, data):
         if isinstance(data, dict) and 'model_name' in data:
@@ -67,6 +69,9 @@ class StarliteClient:
                 ret = self._http.post(
                     self.url,
                     data=obj.json(),
+                    headers={
+                        "Authorization": f"Bearer {self.token}"
+                    },
                     # Large timeout for the connection
                     # We don't wait for the response so small timeout for read
                     timeout=(12.05, 0.001)
@@ -78,6 +83,9 @@ class StarliteClient:
             ret = self._http.post(
                 self.url,
                 data=obj.json(),
+                headers={
+                    "Authorization": f"Bearer {self.token}"
+                }
             )
 
         if ret.status_code == 201:
