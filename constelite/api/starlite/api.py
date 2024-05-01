@@ -79,12 +79,13 @@ class StarliteAPI(ConsteliteAPI):
             StoreController,
             ping
         ]
+        open_route_handlers = []
 
         if (
             self.static_dir is not None
             and os.path.exists(self.static_dir)
         ):
-            route_handlers.append(
+            open_route_handlers.append(
                 create_static_files_router(
                     directories=[self.static_dir],
                     path="/static"
@@ -98,7 +99,7 @@ class StarliteAPI(ConsteliteAPI):
             and self.template_dir is not None
             and os.path.exists(self.template_dir)
         ):
-            route_handlers.append(
+            open_route_handlers.append(
                 self.generate_index_route(self.index_template)
             )
 
@@ -113,8 +114,14 @@ class StarliteAPI(ConsteliteAPI):
             middleware=[JWTAuthenticationMiddleware],
             security=[{"BearerToken": []}],
         )
+
+        open_router = Router(
+            path="/",
+            route_handlers=open_route_handlers,
+        )
+
         self.app = Litestar(
-            route_handlers=[main_router],
+            route_handlers=[main_router, open_router],
             exception_handlers={
             },
             openapi_config=OpenAPIConfig(
@@ -135,12 +142,11 @@ class StarliteAPI(ConsteliteAPI):
                 "api": Provide(self.provide_api)
             },
             template_config=template_config,
-            cors_config = CORSConfig(
+            cors_config=CORSConfig(
                 allow_origins=get_config("security", "allowed_origins"),
                 allow_credentials=True,
                 allow_methods=["*"],
                 allow_headers=["*"],
-                expose_headers=["x-total-count"],
             )
         )
 

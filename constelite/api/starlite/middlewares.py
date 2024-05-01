@@ -60,7 +60,7 @@ class JWTAuthenticationMiddleware(AbstractAuthenticationMiddleware):
         """Given a request, parse the request api key stored
         in the header
         """
-        
+
         if request.scope["method"] == "OPTIONS":
             return AuthenticationResult(user=None, auth=None)
 
@@ -68,7 +68,7 @@ class JWTAuthenticationMiddleware(AbstractAuthenticationMiddleware):
 
         if auth_header == "":
             raise NotAuthorizedException(detail="No 'Authorization' header provided")
-        
+
         try:
             auth_scheme, raw_token = auth_header.split(" ", 1)
         except ValueError:
@@ -81,7 +81,7 @@ class JWTAuthenticationMiddleware(AbstractAuthenticationMiddleware):
 
         if lc_scheme != "bearer":
             raise NotAuthorizedException(detail=f"Invalid 'Authorization' scheme: {auth_scheme}")
-        
+
         return await self.attempt_jwt_authentication(raw_token)
 
 
