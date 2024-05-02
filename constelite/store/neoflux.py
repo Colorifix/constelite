@@ -444,25 +444,29 @@ class NeofluxStore(BaseStore):
         # return resolve_model(values=data | rels)
 
     def execute_query(self, query, model_type, include_states):
-        if isinstance(query, PropertyQuery):
+        if query is None:
+            res = self.graph.nodes.match(
+                model_type.__name__
+            ).all()
+        elif isinstance(query, PropertyQuery):
             res = self.graph.nodes.match(
                 model_type.__name__,
                 **query.property_values
             ).all()
-
-            if include_states:
-                return {
-                    node.get(UID_FIELD): self.get_state_by_uid(
-                            uid=node.get(UID_FIELD),
-                            model_type=model_type
-                        )
-                    for node in res
-                }
-
-            else:
-                return {
-                    node.get(UID_FIELD): None
-                    for node in res
-                }
         else:
-            raise ValueError("Can only process Property Queries")
+            raise ValueError("Unsupported query type")
+
+        if include_states:
+            return {
+                node.get(UID_FIELD): self.get_state_by_uid(
+                    uid=node.get(UID_FIELD),
+                    model_type=model_type
+                )
+                for node in res
+            }
+
+        else:
+            return {
+                node.get(UID_FIELD): None
+                for node in res
+            }

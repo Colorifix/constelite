@@ -506,9 +506,9 @@ class BaseStore(StoreModel):
 
     def query(
         self,
-        query: Query,
         model_name: str,
-        include_states: bool
+        include_states: bool,
+        query: Optional[Query] = None,
     ) -> List[Ref]:
         self._validate_method('QUERY')
         model_type = get_auto_resolve_model(

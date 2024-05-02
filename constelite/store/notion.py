@@ -303,8 +303,10 @@ class ModelHandler(BaseModel):
         if len(filters) > 1:
             # Only add more nesting if needed. Notion limits to 2 levels.
             return and_filter(filters=filters)
-        else:
+        elif len(filters) == 1:
             return filters[0]
+        else:
+            return None
 
 
 class NotionStore(BaseStore):
@@ -487,37 +489,40 @@ class NotionStore(BaseStore):
 
     def execute_query(
             self,
-            query: Query,
+            query: Optional[Query],
             model_type: Type[StateModel],
             include_states: bool
     ) -> UID:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
-        if isinstance(query, PropertyQuery):
+        database = self.api.get_database(
+            database_id=handler_cls._database_id,
+        )
+        if query is None:
+            # Fetch all results
+            pages = database.query()
+        elif isinstance(query, PropertyQuery):
             notion_filter = handler_cls.notion_filter_from_property_query(
                 query=query
-            )
-            database = self.api.get_database(
-                database_id=handler_cls._database_id,
             )
             pages = database.query(
                 filters=notion_filter
             )
-
-            uids = {}
-
-            if include_states is True:
-                for page in pages:
-                    handler = handler_cls.from_page(
-                        uid=page.page_id,
-                        page=page
-                    )
-                    state = handler.to_state(model_type=model_type)
-                    uids[str(UUID(page.page_id))] = state
-            else:
-                uids = {
-                    str(UUID(page.page_id)): None for page in pages
-                }
-
-            return uids
         else:
             raise ValueError("Unsupported query type")
+
+        uids = {}
+
+        if include_states is True:
+            for page in pages:
+                handler = handler_cls.from_page(
+                    uid=page.page_id,
+                    page=page
+                )
+                state = handler.to_state(model_type=model_type)
+                uids[str(UUID(page.page_id))] = state
+        else:
+            uids = {
+                str(UUID(page.page_id)): None for page in pages
+            }
+
+        return uids

@@ -62,7 +62,7 @@ class DeleteRequest(RefRequest):
 
 
 class QueryRequest(BaseModel):
-    query: Union[PropertyQuery]
+    query: Optional[Union[PropertyQuery]] = None
     model_name: str
     store: StoreModel
     include_states: Optional[bool] = False

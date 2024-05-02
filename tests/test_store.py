@@ -10,7 +10,12 @@ from constelite.models import (
     Association, Composition, Aggregation,
     backref
 )
-from constelite.store import PickleStore, NeofluxStore, MemcachedStore
+from constelite.store import (
+    PickleStore,
+    NeofluxStore,
+    MemcachedStore,
+    PropertyQuery
+)
 
 
 class AbsorbanceSchema(TensorSchema):
@@ -55,6 +60,11 @@ class Foo(StateModel):
     composition: Optional[Composition[Bar]]
     aggregation: Optional[Aggregation[Bar]]
     baz: Optional[Association[Baz]]
+
+
+class Qux(StateModel):
+    # Just for the get all query test
+    name: str
 
 
 class StoreTestMixIn():
@@ -652,6 +662,52 @@ class StoreTestMixIn():
             uid=r_bar.uid,
             model_type=Bar
         ))
+
+    def test_property_query(self):
+        try:
+            self.store._validate_method('QUERY')
+
+            self.store.put(
+                ref=ref(
+                    Foo(int_field=1234)
+                )
+            )
+
+            foos = self.store.query(
+                query=PropertyQuery(
+                    int_field=1234
+                ),
+                include_states=True,
+                model_name="Foo"
+            )
+            self.assertTrue(foos[0].int_field == 1234)
+        except NotImplementedError:
+            pass
+
+    def test_get_all_property_query(self):
+        # Create and delete the items in the test to control numbers
+        try:
+            self.store._validate_method('QUERY')
+
+            self.store.put(
+                ref=ref(
+                    Qux(name="Qux1")
+                )
+            )
+            self.store.put(
+                ref=ref(
+                    Qux(name="Qux2")
+                )
+            )
+            quxes = self.store.query(
+                include_states=True,
+                model_name="Qux"
+            )
+            self.assertTrue(len(quxes) == 2)
+            for q in quxes:
+                self.store.delete(q)
+        except NotImplementedError:
+            pass
 
 
 class TestPickleStore(unittest.TestCase, StoreTestMixIn):
