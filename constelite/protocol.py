@@ -1,10 +1,21 @@
-from typing import Any, Optional
-from inspect import signature, Parameter
+from typing import Optional, Type, Callable, Any
+import asyncio
+import inspect
 import re
 
 from pydantic.v1 import BaseModel, validate_arguments, create_model
 
-from constelite.api import ProtocolModel
+from constelite.loggers import Logger, LoggerConfig
+
+class ProtocolModel(BaseModel):
+    """Base class for API methods
+    """
+    path: Optional[str]
+    name: Optional[str]
+    fn: Callable
+    fn_model: Type
+    ret_model: Optional[Type]
+    slug: str
 
 
 class protocol:
@@ -16,24 +27,38 @@ class protocol:
 
     @staticmethod
     def _generate_model(fn):
-        fields = {
-            param_name:
-            (
-                param.annotation,
-                ...
-            )
-            if param.default == Parameter.empty
-            else (
-                param.annotation,
-                param.default
-            )
-            for param_name, param in signature(fn)._parameters.items()
-        }
+        RESERVED_KWARGS = ['api', 'logger']
+        fields = {}
 
-        fields.pop('api')
+        for param_name, param in inspect.signature(fn).parameters.items():
+            if param_name in RESERVED_KWARGS:
+                continue
+            if param.annotation == inspect.Parameter.empty:
+                raise ValueError(f"Signature of {fn.__name__} is not valid. Parameter '{param_name}' has no annotation.")
+            if param.default == inspect.Parameter.empty:
+                fields[param_name] = (param.annotation, ...)
+            else:
+                fields[param_name] = (param.annotation, param.default)
 
         return create_model(fn.__name__, **fields)
 
+    def wrap_fn(self, fn):
+        async def wrapper(api, logger: Optional[Logger] = None, **kwargs):
+            kwargs['api'] = api
+
+            if "logger" in inspect.signature(fn).parameters:
+                kwargs['logger'] = logger
+            
+            if inspect.iscoroutinefunction(fn):
+                return await fn(**kwargs)
+            else:
+                return await asyncio.to_thread(fn, **kwargs)
+        
+        wrapper.__name__ = fn.__name__
+        wrapper.__module__ = fn.__module__
+        wrapper.__doc__ = fn.__doc__
+
+        return wrapper
     def __call__(self, fn):
         fn_name = fn.__name__
 
@@ -48,18 +73,19 @@ class protocol:
 
         fn._protocol_model = ProtocolModel(
             name=self.name,
-            fn=validate_arguments(fn),
+            fn=self.wrap_fn(fn),
             slug=fn.__name__,
             ret_model=ret_model,
             fn_model=model,
         )
+        
 
-        return validate_arguments(fn)
+        return fn
 
 
 class Protocol(BaseModel):
     _name: Optional[str]
-    api: Optional[Any]
+    # api: Optional[Any]
 
     @classmethod
     def get_slug(cls):
@@ -71,9 +97,18 @@ class Protocol(BaseModel):
     def get_model(cls):
         ret_model = cls.run.__annotations__.get('return', None)
 
-        def wrapper(api, **kwargs) -> ret_model:
+        async def wrapper(api, logger: Optional[Logger] = None, **kwargs):
             protocol = cls(**kwargs)
-            return protocol.run(api)
+
+            run_kwargs = {"api": api}
+
+            if "logger" in inspect.signature(protocol.run).parameters:
+                run_kwargs['logger'] = logger
+
+            if inspect.iscoroutinefunction(protocol.run):
+                return await protocol.run(**run_kwargs)
+            else:
+                return await asyncio.to_thread(protocol.run, **run_kwargs)
 
         slug = cls.get_slug()
 

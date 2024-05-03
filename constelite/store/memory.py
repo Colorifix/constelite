@@ -19,20 +19,20 @@ class MemoryStore(UIDKeyStoreBase):
         super().__init__(**data)
         self.memory = {}
 
-    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
+    async def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         return uid in self.memory
 
-    def store(self, uid: UID, model: StateModel) -> UID:
+    async def store(self, uid: UID, model: StateModel) -> UID:
         self.memory[uid] = model
 
         return uid
 
-    def get_state_by_uid(
+    async def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
     ) -> StateModel:
-        if not self.uid_exists(
+        if not await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):
@@ -40,7 +40,7 @@ class MemoryStore(UIDKeyStoreBase):
         else:
             return self.memory[uid]
 
-    def delete_model(
+    async def delete_model(
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:

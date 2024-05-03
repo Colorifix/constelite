@@ -18,7 +18,9 @@ from constelite.api.starlite.middlewares import JWTAuthenticationMiddleware
 import uvicorn
 
 from constelite.api.starlite.controllers import (
-        StoreController, protocol_controller
+        StoreController,
+        threaded_protocol_router,
+        task_protocol_router
 )
 
 from colorifix_alpha.util import get_config
@@ -75,7 +77,8 @@ class StarliteAPI(ConsteliteAPI):
 
     def generate_app(self) -> Litestar:
         route_handlers = [
-            protocol_controller(self),
+            threaded_protocol_router(self),
+            task_protocol_router(self),
             StoreController,
             ping
         ]
@@ -124,6 +127,7 @@ class StarliteAPI(ConsteliteAPI):
             route_handlers=[main_router, open_router],
             exception_handlers={
             },
+            # openapi_config=None,
             openapi_config=OpenAPIConfig(
                 title=self.name,
                 version=self.version,

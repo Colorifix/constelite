@@ -23,16 +23,16 @@ class MemcachedStore(UIDKeyStoreBase):
         super().__init__(**data)
         self.client = Client(self.host, serde=serde.pickle_serde)
 
-    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
+    async def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         model = self.client.get(uid)
         return model is not None
 
-    def get_state_by_uid(
+    async def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
     ) -> StateModel:
-        if not self.uid_exists(
+        if not await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):
@@ -41,16 +41,16 @@ class MemcachedStore(UIDKeyStoreBase):
             model = self.client.get(uid)
             return resolve_model(values=model)
 
-    def store(self, uid: str, model: StateModel) -> str:
+    async def store(self, uid: str, model: StateModel) -> str:
         self.client.set(uid, model.dict())
 
         return uid
 
-    def delete_model(
+    async def delete_model(
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
-        if self.uid_exists(
+        if await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):

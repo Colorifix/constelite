@@ -1,37 +1,22 @@
-from typing import Any, Callable
+from functools import wraps
 import inspect
-from litestar import Controller, post
 
-from constelite.models import StateModel, Ref, resolve_model
-from constelite.api import ProtocolModel
+from constelite.models import StateModel, Ref
+from constelite.protocol import ProtocolModel
+from constelite.api.starlite.controllers.generator import (
+    generate_protocol_router,
+    generate_route
+)
 
-
-def generate_method(
-        protocol_model: ProtocolModel
-        ) -> Callable[[StateModel, "StarliteAPI"], Any]:
-    ret_model = protocol_model.ret_model
-    fn = protocol_model.fn
-    fn_model = protocol_model.fn_model
-
-    def wrapper(self, data: Any, api: Any) -> ret_model:
-        kwargs = {}
-        if "logger" in inspect.signature(fn).parameters or \
-                "logger" in fn_model.__annotations__:
-            kwargs["logger"] = api.get_logger(data.pop("logger", None))
-
-        for key, value in data.items():
-            if isinstance(value, dict) and 'model_name' in value:
-                kwargs[key] = resolve_model(value)
-            else:
-                kwargs[key] = value
-
-        kwargs['api'] = api
-        ret = fn(**kwargs)
+def direct_call_wrapper(protocol_model: ProtocolModel):
+    @wraps(protocol_model.fn)
+    async def wrapper(api, logger, **kwargs):
+        ret = await protocol_model.fn(api, logger, **kwargs)
 
         if isinstance(ret, StateModel):
             temp_store = getattr(api, 'temp_store', None)
 
-            ref = Ref[ret_model](state=ret)
+            ref = Ref[protocol_model.ret_model](state=ret)
 
             if temp_store is not None:
                 return temp_store.put(
@@ -42,32 +27,17 @@ def generate_method(
 
         return ret
 
-    wrapper.__name__ = fn.__name__
-    wrapper.__module__ = fn.__module__
-    wrapper.__doc__ = fn.__doc__
-    return wrapper
+    return generate_route(
+        data_cls=protocol_model.fn_model,
+        ret_cls=protocol_model.ret_model,
+        fn=wrapper
+    )
 
 
-def protocol_controller(api: "StarliteAPI") -> Controller:
-    """Generates a controller to handle protocol endpoints
-    """
-    attrs = {
-        "path": "/protocols",
-        "tags": ["Protocols"]
-    }
-
-    for protocol_model in api.protocols:
-
-        tags = []
-        path_parts = protocol_model.path.split('/')
-        if len(path_parts) > 1:
-            tags.extend(path_parts[:-1])
-
-        attrs[protocol_model.slug] = post(
-            path=protocol_model.path,
-            summary=protocol_model.name,
-            tags=tags,
-            sync_to_thread=True
-        )(generate_method(protocol_model))
-
-    return type("ProtocolController", (Controller,), attrs)
+def threaded_protocol_router(api):
+    return generate_protocol_router(
+        api=api,
+        path='/protocols',
+        fn_wrapper=direct_call_wrapper,
+        tags=["Protocols"]
+    )

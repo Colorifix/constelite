@@ -5,8 +5,10 @@ from uuid import uuid4
 from pydantic.v1 import UUID4, Field
 
 from constelite.models import UID
-from constelite.guid_map import GUIDMap
+from constelite.guid_map.async_base import AsyncGUIDMap
 from constelite.store import BaseStore, NeoConfig
+
+from constelite.utils import to_thread
 
 from py2neo import Graph, Node, Relationship
 
@@ -16,7 +18,7 @@ ENTITY_LABEL = "_Entity"
 STORED_REL_LABEL = "_STORED_IN"
 
 
-class NeoGUIDMap(GUIDMap):
+class AsyncNeoGUIDMap(AsyncGUIDMap):
     config: NeoConfig
     graph: Optional[Graph] = Field(exclude=True)
 
@@ -42,7 +44,7 @@ class NeoGUIDMap(GUIDMap):
             self.graph.commit(tx)
 
         return store_node
-
+    @to_thread
     def guid_exists(self, guid: UUID4) -> bool:
         entity_node = self.graph.nodes.match(
             ENTITY_LABEL,
@@ -50,7 +52,7 @@ class NeoGUIDMap(GUIDMap):
         ).first()
 
         return entity_node is not None
-
+    @to_thread
     def get_guid(self, uid: UID, store: BaseStore) -> Optional[UUID4]:
         guid = self.graph.run(
             f"MATCH (s:{STORE_LABEL} {{uid: \"{store.uid}\"}})"
@@ -62,7 +64,7 @@ class NeoGUIDMap(GUIDMap):
             return UUID4(guid)
         else:
             return None
-
+    @to_thread
     def link_uid(self, uid, guid: UUID4, store: BaseStore) -> None:
         store_node = self.get_or_create_store_node(store=store)
         entity_node = self.graph.nodes.match(
@@ -82,7 +84,7 @@ class NeoGUIDMap(GUIDMap):
         tx = self.graph.begin()
         tx.create(rel)
         self.graph.commit(tx)
-
+    @to_thread
     def create_guid(self, uid: UID, store: BaseStore) -> UUID4:
         store_node = self.get_or_create_store_node(store=store)
 
@@ -99,14 +101,14 @@ class NeoGUIDMap(GUIDMap):
         self.graph.commit(tx)
 
         return UUID4(entity_node['guid'])
-
+    @to_thread
     def get_uid(self, guid: UUID4, store: BaseStore):
         return self.graph.run(
             f"MATCH (s:{STORE_LABEL} {{uid: \"{store.uid}\"}})"
             f"<-[r]-(e:{ENTITY_LABEL} {{guid: \"{str(guid)}\"}})"
             f"RETURN r.uid"
         ).evaluate()
-
+    @to_thread
     def delete_uid(self, uid: UID, store: "BaseStore"):
         self.graph.run(
             f"MATCH (s:{STORE_LABEL} {{uid: \"{store.uid}\"}})"

@@ -1,7 +1,12 @@
-from constelite.guid_map.guid import GUIDMap
-from constelite.guid_map.neo4j_map import NeoGUIDMap
+from constelite.guid_map.sync_base import GUIDMap
+from constelite.guid_map.sync_neo4j import NeoGUIDMap
+
+from constelite.guid_map.async_base import AsyncGUIDMap
+from constelite.guid_map.async_neo4j import AsyncNeoGUIDMap
 
 __all__ = [
     'GUIDMap',
-    'NeoGUIDMap'
+    'AsyncGUIDMap',
+    'NeoGUIDMap',
+    'AsyncNeoGUIDMap',
 ]

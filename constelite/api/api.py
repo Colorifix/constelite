@@ -2,14 +2,15 @@ import os
 import importlib
 import inspect
 
-from typing import Callable, Optional, List, Type, Dict, Any, Union
-from pydantic.v1 import UUID4, BaseModel
+from pydantic.v1 import UUID4
+from typing import Optional, List,  Dict, Any, Union, Callable, Type
 
 from constelite.models import Ref, StoreModel, StateModel
-from constelite.store import BaseStore
-from constelite.guid_map import GUIDMap
+from constelite.store import BaseStore, AsyncBaseStore
+from constelite.guid_map import GUIDMap, AsyncGUIDMap
 from constelite.loggers.base_logger import LoggerConfig, Logger
-
+from constelite.protocol import Protocol
+from loguru import logger
 
 class ConsteliteAPI:
     """Base class for API implementations.
@@ -43,6 +44,7 @@ class ConsteliteAPI:
         temp_store: Optional[BaseStore] = None,
         dependencies: Optional[Dict[str, Any]] = {},
         guid_map: Optional[GUIDMap] = None,
+        async_guid_map: Optional[AsyncGUIDMap] = None,
         loggers: Optional[List[Type[Logger]]] = None
     ):
         self.name = name
@@ -58,6 +60,7 @@ class ConsteliteAPI:
             self.stores.append(self.temp_store)
 
         self._guid_map = guid_map
+        self._async_guid_map = async_guid_map
         self._guid_enabled = False
 
         self.loggers = loggers
@@ -65,7 +68,14 @@ class ConsteliteAPI:
     def enable_guid(self):
         if self._guid_map is not None:
             for store in self.stores:
-                store.set_guid_map(self._guid_map)
+                if isinstance(store, BaseStore):
+                    store.set_guid_map(self._guid_map)
+                elif isinstance(store, AsyncBaseStore):
+                    store.set_guid_map(self._async_guid_map)
+                else:
+                    raise ValueError(
+                        "Enabling guid failed. Store {store} is not BaseStore or AsyncBaseStore"
+                    )
         else:
             raise ValueError("Enabling guid failed. No guid_map provided")
 
@@ -73,7 +83,7 @@ class ConsteliteAPI:
         for store in self.stores:
             store.disable_guid()
 
-    def get_logger(self,
+    async def get_logger(self,
                    logger_config: Optional[Union[LoggerConfig, dict]]
                    ) -> Logger:
         """
@@ -104,7 +114,21 @@ class ConsteliteAPI:
                 )
             logger_kwargs = logger_config['logger_kwargs']
 
-        return logger_cls(api=self, **logger_kwargs)
+        logger = logger_cls(api=self, **logger_kwargs)
+        await logger.initialise()
+
+        return logger
+    def add_protocol(self, protocol: Union[Type[Protocol], Callable]):
+        if issubclass(protocol, Protocol):
+            protocol_model = protocol.get_model()
+        else:
+            protocol_model = getattr(protocol, '_protocol_model', None)
+
+        if protocol_model is not None:
+            protocol_model.path = protocol_model.name
+            self.protocols.append(protocol_model)
+        else:
+            logger.warning("Supplied protocol is invalid")
 
     def discover_protocols(self, module_root: str, bind_path: str = "") -> None:
         """Discovers protocols in the given module
@@ -179,18 +203,18 @@ class ConsteliteAPI:
 
         return protocol
 
-    def run_protocol(self, slug: str, **kwargs):
+    async def run_protocol(self, slug: str, **kwargs):
         protocol = self.get_protocol(slug=slug)
 
         if protocol is None:
             raise ValueError(f"Unknown protocol with slug {slug}")
         else:
-            return protocol.fn(api=self, **kwargs)
+            return await protocol.fn(api=self, **kwargs)
 
     def get_dependency(self, key):
         return self._dependencies.get(key, None)
 
-    def get_state(self, ref: Ref, cache: bool = True) -> StateModel:
+    async def get_state(self, ref: Ref, cache: bool = True) -> StateModel:
         """Retrieves a state of a reference from store
 
         Args:
@@ -224,19 +248,8 @@ class ConsteliteAPI:
                         f"{ref.record.store.uid})"
                     )
 
-                state = store.get(ref).state
+                state = (await store.get(ref)).state
                 if cache is True:
                     ref.state = state
 
         return state
-
-
-class ProtocolModel(BaseModel):
-    """Base class for API methods
-    """
-    path: Optional[str]
-    name: Optional[str]
-    fn: Callable
-    fn_model: Type
-    ret_model: Optional[Type]
-    slug: str

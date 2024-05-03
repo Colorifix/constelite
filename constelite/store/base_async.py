@@ -1,3 +1,5 @@
+import asyncio
+
 from typing import (
     Dict,
     List,
@@ -10,11 +12,9 @@ from typing import (
     ForwardRef
 )
 
-from functools import partial
-
 from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4
 
-from constelite.utils import all_subclasses, to_thread
+from constelite.utils import all_subclasses
 
 from constelite.models import (
     StateModel,
@@ -68,7 +68,7 @@ class GetAllQuery(Query):
 StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
 
 
-class BaseStore(StoreModel):
+class AsyncBaseStore(StoreModel):
     _allowed_methods: ClassVar[
         List[StoreMethod]] = []
 
@@ -80,38 +80,38 @@ class BaseStore(StoreModel):
     def disable_guid(self):
         self._guid_map = None
 
-    def get_guid_record(self, uid: UID):
+    async def get_guid_record(self, uid: UID):
         if self._guid_map is not None:
-            guid = self._guid_map.get_guid(
+            guid = await self._guid_map.get_guid(
                 uid=uid,
                 store=self
             )
             if guid is None:
-                guid = self._guid_map.create_guid(
+                guid = await self._guid_map.create_guid(
                     uid=uid,
                     store=self
                 )
             return guid
 
-    def link_record(self, uid: UID, guid: UUID4):
+    async def link_record(self, uid: UID, guid: UUID4):
         if self._guid_map is not None:
-            existing_guid = self._guid_map.get_guid(uid=uid, store=self)
+            existing_guid = await self._guid_map.get_guid(uid=uid, store=self)
 
             if existing_guid is not None:
                 if existing_guid != guid:
                     raise ValueError('GUID mismatch')
                 else:
                     return
-            if self._guid_map.guid_exists(guid=guid):
-                self._guid_map.link_uid(uid=uid, guid=guid, store=self)
+            if await self._guid_map.guid_exists(guid=guid):
+                await self._guid_map.link_uid(uid=uid, guid=guid, store=self)
             else:
                 raise ValueError(
                     f'Could not find entity {guid} in the guid map'
                 )
 
-    def delete_uid_record(self, uid: UID):
+    async def delete_uid_record(self, uid: UID):
         if self._guid_map is not None:
-            self._guid_map.delete_uid(
+            await self._guid_map.delete_uid(
                 uid=uid,
                 store=self
             )
@@ -123,68 +123,68 @@ class BaseStore(StoreModel):
             values['name'] = cls.__name__
         return values
 
-    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
+    async def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         raise NotImplementedError
 
-    def create_model(
+    async def create_model(
             self,
             model_type: StateModel,
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
         raise NotImplementedError
 
-    def delete_model(
+    async def delete_model(
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
         raise NotImplementedError
 
-    def overwrite_static_props(
+    async def overwrite_static_props(
             self,
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, StaticTypes]) -> None:
         raise NotImplementedError
 
-    def overwrite_dynamic_props(
+    async def overwrite_dynamic_props(
             self,
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
-    def extend_dynamic_props(
+    async def extend_dynamic_props(
             self,
             uid: UID,
             model_type: Type[StateModel],
             props: Dict[str, Optional[Dynamic]]) -> None:
         raise NotImplementedError
 
-    def delete_all_relationships(
+    async def delete_all_relationships(
             self,
             from_uid: UID,
             from_model_type: Type[StateModel],
             rel_from_name: str) -> List[UID]:
         raise NotImplementedError
 
-    def create_relationships(
+    async def create_relationships(
             self,
             from_uid: UID,
             from_model_type: Type[StateModel],
             inspector: RelInspector) -> None:
         raise NotImplementedError
 
-    def get_state_by_uid(
+    async def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
     ) -> StateModel:
         raise NotImplementedError
 
-    def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
+    async def get_model_by_backref(self, query: BackrefQuery) -> List[StateModel]:
         raise NotImplementedError
 
-    def execute_query(
+    async def execute_query(
             self,
             query: Query,
             model_type: Type[StateModel],
@@ -192,19 +192,20 @@ class BaseStore(StoreModel):
     ) -> Dict[UID, Optional[StateModel]]:
         raise NotImplementedError
 
-    def generate_ref(
+    async def generate_ref(
         self,
         uid: UID,
         state_model_name: Optional[str] = None,
         state: Optional[StateModel] = None,
         guid: Optional[UUID4] = None
     ):
+
         if guid is None:
-            guid = self.get_guid_record(
+            guid = await self.get_guid_record(
                 uid=uid
             )
         else:
-            self.link_record(uid=uid, guid=guid)
+            await self.link_record(uid=uid, guid=guid)
 
         if guid is not None:
             guid = str(guid)
@@ -219,7 +220,7 @@ class BaseStore(StoreModel):
             guid=guid
         )
 
-    def _validate_ref_uid(self, ref: Ref):
+    async def _validate_ref_uid(self, ref: Ref):
         if ref.record is None:
             raise ValueError("Can't validate uid of a ref without a record")
 
@@ -232,14 +233,16 @@ class BaseStore(StoreModel):
             root_cls=StateModel
         )
 
-        if not self.uid_exists(
+        uid_exists = await self.uid_exists(
             uid=ref.uid,
             model_type=state_model_type
-        ):
+        )
+
+        if not uid_exists:
             raise KeyError('Ref does not exist in the store')
 
-    def _validate_ref_full(self, ref: Ref) -> Ref:
-        ref = self._fetch_record_by_guid(ref)
+    async def _validate_ref_full(self, ref: Ref) -> Ref:
+        ref = await self._fetch_record_by_guid(ref)
 
         if ref.record is None:
             raise ValueError("Reference does not have a store record")
@@ -247,12 +250,12 @@ class BaseStore(StoreModel):
             raise ValueError(
                 'Reference store record is from a different store'
             )
-        self._validate_ref_uid(ref=ref)
+        await self._validate_ref_uid(ref=ref)
         return ref
 
-    def _fetch_record_by_guid(self, ref: Ref) -> Ref:
+    async def _fetch_record_by_guid(self, ref: Ref) -> Ref:
         if ref.guid is not None and self._guid_map is not None:
-            uid = self._guid_map.get_uid(guid=ref.guid, store=self)
+            uid = await self._guid_map.get_uid(guid=ref.guid, store=self)
             # Copy the ref before changing it.
             ref = ref.copy_ref()
             if uid is not None:
@@ -270,125 +273,140 @@ class BaseStore(StoreModel):
                 f'{method} is not allowed for {self.name}'
             )
 
-    def _update_relationships(
+    async def _update_relationships(
             self,
             method: Callable,
             from_uid: UID,
             from_model_type: Type[StateModel],
-            field_name: str, rel: RelInspector,
+            field_name: str,
+            rel: RelInspector,
             overwrite: bool = False,
             delete_orphans: bool = False):
 
         if overwrite is True:
-            orphans = self.delete_all_relationships(
+            orphans = await self.delete_all_relationships(
                 from_uid=from_uid,
                 from_model_type=from_model_type,
                 rel_from_name=field_name
             )
 
             if delete_orphans is True:
-                for orphan_uid in orphans:
-                    self.delete_model(
-                        uid=orphan_uid,
-                        model_type=from_model_type
-                    )
+                async with asyncio.TaskGroup() as tg:
+                    for orphan_uid in orphans:
+                        tg.create_task(
+                            self.delete_model(
+                                uid=orphan_uid,
+                                model_type=from_model_type
+                            )
+                        )
+        
+        tasks = []
+        async with asyncio.TaskGroup() as tg:
+            for to_ref in rel.to_refs:
+                task = tg.create_task(
+                    method(ref=to_ref)
+                )
+                tasks.append(task)
 
-        to_objs_refs = []
+        rel.to_refs = [
+            task.result() for task in tasks
+        ]
 
-        for to_ref in rel.to_refs:
-            obj_ref = method(ref=to_ref)
-            to_objs_refs.append(obj_ref)
-
-        rel.to_refs = to_objs_refs
-
-        self.create_relationships(
+        await self.create_relationships(
             from_uid=from_uid,
             from_model_type=from_model_type,
             inspector=rel
         )
 
-    @to_thread
-    def put(self, ref: Ref) -> Ref:
+    async def put(self, ref: Ref) -> Ref:
         self._validate_method('PUT')
-        ref = self._fetch_record_by_guid(ref)
+        ref = await self._fetch_record_by_guid(ref)
 
         # For put inside _update_relations when relationship is a
         # reference to existing state
         if ref.state is None:
-            self._validate_ref_uid(ref)
+            await self._validate_ref_uid(ref)
             return ref
 
         inspector = StateInspector.from_state(ref.state)
 
         if ref.record is None:
-            uid = self.create_model(
+            uid = await self.create_model(
                 model_type=inspector.model_type,
                 static_props=inspector.static_props,
                 dynamic_props=inspector.dynamic_props
             )
 
-            for field_name, rel in (
-                inspector.associations | inspector.aggregations
-                | inspector.compositions
-            ).items():
-                self._update_relationships(
-                    method=partial(BaseStore.put._sync_fn, self),
-                    from_uid=uid,
-                    from_model_type=inspector.model_type,
-                    field_name=field_name,
-                    rel=rel
-                )
+            async with asyncio.TaskGroup() as tg:
+                for field_name, rel in (
+                    inspector.associations | inspector.aggregations
+                    | inspector.compositions
+                ).items():
+                    tg.create_task(
+                            self._update_relationships(
+                            method=self.put,
+                            from_uid=uid,
+                            from_model_type=inspector.model_type,
+                            field_name=field_name,
+                            rel=rel
+                        )
+                    )
 
-            return self.generate_ref(
+            return await self.generate_ref(
                 uid=uid,
                 state_model_name=ref.state_model_name,
                 guid=ref.guid
             )
 
         else:
-            ref = self._validate_ref_full(ref)
-            self.overwrite_static_props(
+            ref = await self._validate_ref_full(ref)
+            await self.overwrite_static_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
                 props=inspector.static_props
             )
-            self.overwrite_dynamic_props(
+            await self.overwrite_dynamic_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
                 props=inspector.dynamic_props
             )
-            for field_name, rel in (
-                    inspector.associations | inspector.aggregations).items():
-                self._update_relationships(
-                    method=partial(BaseStore.put._sync_fn, self),
-                    from_uid=ref.uid,
-                    from_model_type=inspector.model_type,
-                    field_name=field_name,
-                    rel=rel,
-                    overwrite=True,
-                    delete_orphans=False
-                )
 
-            for field_name, rel in inspector.compositions.items():
-                self._update_relationships(
-                    method=partial(BaseStore.put._sync_fn, self),
-                    from_uid=ref.uid,
-                    from_model_type=inspector.model_type,
-                    field_name=field_name,
-                    rel=rel,
-                    overwrite=True,
-                    delete_orphans=True
-                )
-            return self.generate_ref(
+            async with asyncio.TaskGroup() as tg:
+                for field_name, rel in (
+                        inspector.associations | inspector.aggregations).items():
+                    tg.create_task(
+                        self._update_relationships(
+                            method=self.put,
+                            from_uid=ref.uid,
+                            from_model_type=inspector.model_type,
+                            field_name=field_name,
+                            rel=rel,
+                            overwrite=True,
+                            delete_orphans=False
+                        )
+                    )
+
+                for field_name, rel in inspector.compositions.items():
+                    tg.create_task(
+                        self._update_relationships(
+                            method=self.put,
+                            from_uid=ref.uid,
+                            from_model_type=inspector.model_type,
+                            field_name=field_name,
+                            rel=rel,
+                            overwrite=True,
+                            delete_orphans=True
+                        )
+                    )
+            return await self.generate_ref(
                 uid=ref.uid,
                 state_model_name=ref.state_model_name,
                 guid=ref.guid
             )
 
-    @to_thread
-    def patch(self, ref: Ref) -> Ref:
+    async def patch(self, ref: Ref) -> Ref:
         self._validate_method('PATCH')
-        ref = self._validate_ref_full(ref=ref)
+        ref = await self._validate_ref_full(ref=ref)
 
         if ref.state is None:
             return ref
@@ -396,57 +414,58 @@ class BaseStore(StoreModel):
         inspector = StateInspector.from_state(ref.state)
 
         if inspector.static_props != {}:
-            self.overwrite_static_props(
+            await self.overwrite_static_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
                 props=inspector.static_props
             )
         if inspector.dynamic_props != {}:
-            self.extend_dynamic_props(
+            await self.extend_dynamic_props(
                 uid=ref.uid,
                 model_type=inspector.model_type,
                 props=inspector.dynamic_props
             )
 
-        for field_name, rel in inspector.associations.items():
-            self._update_relationships(
-                method=partial(BaseStore.patch._sync_fn, self),
-                from_uid=ref.uid,
-                from_model_type=inspector.model_type,
-                field_name=field_name,
-                rel=rel,
-                overwrite=True,
-                delete_orphans=False
-            )
+        async with asyncio.TaskGroup() as tg:
 
-        for field_name, rel in (
-                inspector.compositions | inspector.aggregations).items():
-            self._update_relationships(
-                method=partial(BaseStore.patch._sync_fn, self),
-                from_uid=ref.uid,
-                from_model_type=inspector.model_type,
-                field_name=field_name,
-                rel=rel
-            )
+            for field_name, rel in inspector.associations.items():
+                tg.create_task(
+                    self._update_relationships(
+                        method=self.patch,
+                        from_uid=ref.uid,
+                        from_model_type=inspector.model_type,
+                        field_name=field_name,
+                        rel=rel,
+                        overwrite=True,
+                        delete_orphans=False
+                    )
+                )
 
-        return self.generate_ref(
+            for field_name, rel in (
+                    inspector.compositions | inspector.aggregations).items():
+                tg.create_task(
+                    self._update_relationships(
+                        method=self.patch,
+                        from_uid=ref.uid,
+                        from_model_type=inspector.model_type,
+                        field_name=field_name,
+                        rel=rel
+                    )
+                )
+
+        return await self.generate_ref(
             uid=ref.uid,
             state_model_name=ref.state_model_name,
             guid=ref.guid
         )
 
-    @to_thread
-    def delete(self, ref: Ref) -> None:
+    async def delete(self, ref: Ref) -> None:
         self._validate_method('DELETE')
 
-        ref = self._validate_ref_full(ref=ref)
+        ref = await self._validate_ref_full(ref=ref)
 
-        model_type = next(
-            (
-                cls for cls in all_subclasses(StateModel)
-                if cls.__name__ == ref.state_model_name
-            ),
-            None
+        model_type = get_auto_resolve_model(
+            model_name=ref.state_model_name
         )
 
         if model_type is None:
@@ -454,44 +473,57 @@ class BaseStore(StoreModel):
                 "Unknown state model name '{ref.state_model_name}'"
             )
 
-        state = self.get_state_by_uid(
+        state = await self.get_state_by_uid(
             uid=ref.uid,
             model_type=model_type
         )
 
         inspector = StateInspector.from_state(state)
 
-        for field_name, rel in (
-                    inspector.associations | inspector.aggregations).items():
-            self.delete_all_relationships(
+        async def delete_rels_with_orphans_wrapper(field_name, rel):
+            orphan_uids = await self.delete_all_relationships(
                 from_uid=ref.uid,
                 from_model_type=model_type,
                 rel_from_name=field_name
             )
+            async with asyncio.TaskGroup() as tg:
+                for orphan_uid in orphan_uids:
+                    tg.create_task(
+                            self.delete_model(
+                            uid=orphan_uid,
+                            model_type=rel.to_model
+                        )
+                    )
 
-        for field_name, rel in inspector.compositions.items():
-            orphan_models = self.delete_all_relationships(
-                from_uid=ref.uid,
-                from_model_type=model_type,
-                rel_from_name=field_name
-            )
-
-            for orphan_uid in orphan_models:
-                self.delete_model(
-                    uid=orphan_uid,
-                    model_type=rel.to_model
+        async with asyncio.TaskGroup() as tg:
+            for field_name, rel in (
+                        inspector.associations | inspector.aggregations).items():
+                tg.create_task(
+                    self.delete_all_relationships(
+                        from_uid=ref.uid,
+                        from_model_type=model_type,
+                        rel_from_name=field_name
+                    )
                 )
 
-        self.delete_uid_record(uid=ref.uid)
+            for field_name, rel in inspector.compositions.items():
+                tg.create_task(
+                    delete_rels_with_orphans_wrapper(
+                        field_name=field_name,
+                        rel=rel
+                    )
+                )
 
-        self.delete_model(
+        await self.delete_uid_record(uid=ref.uid)
+
+        await self.delete_model(
             uid=ref.uid,
             model_type=model_type
         )
-    @to_thread
-    def get(self, ref: Ref) -> Ref:
+
+    async def get(self, ref: Ref) -> Ref:
         self._validate_method('GET')
-        ref = self._validate_ref_full(ref)
+        ref = await self._validate_ref_full(ref)
 
         if ref.state_model_name == 'Any':
             model_type = Any
@@ -499,21 +531,21 @@ class BaseStore(StoreModel):
             model_type = get_auto_resolve_model(
                 model_name=ref.state_model_name
             )
-
-        return self.generate_ref(
-            uid=ref.record.uid,
-            state=self.get_state_by_uid(
-                uid=ref.uid,
-                model_type=model_type
-            )
+        state = await self.get_state_by_uid(
+            uid=ref.uid,
+            model_type=model_type
         )
 
-    @to_thread
-    def query(
+        return await self.generate_ref(
+            uid=ref.record.uid,
+            state=state
+        )
+
+    async def query(
         self,
         model_name: str,
         include_states: bool,
-        query: Optional[Query] = None,
+        query: Optional[Query] = None
     ) -> List[Ref]:
         self._validate_method('QUERY')
         model_type = get_auto_resolve_model(
@@ -524,26 +556,28 @@ class BaseStore(StoreModel):
         if model_type is None:
             raise ValueError(f"Unknown model '{model_name}'")
 
-        uids = self.execute_query(
+        uids = await self.execute_query(
             query=query,
             model_type=model_type,
             include_states=include_states
-        )
-        # Experimental
-        #
-        # if include_states:
-        #     for field_name, field in model_type.__fields__.items():
-        #         if issubclass(field.type_, Relationship):
-        #             for uid, state in uids.items():
-        #                 rels = getattr(state, field_name)
-        #                 for ref in rels:
-        #                     ref.state = self.get(ref=ref)
+        ) 
 
-        return [
-            self.generate_ref(
-                uid=uid,
-                state_model_name=model_name,
-                state=state
-            )
-            for uid, state in uids.items()
+        tasks = []
+
+        async with asyncio.TaskGroup() as tg:
+            for uid, state in uids.items():
+                task =  tg.create_task(
+                    self.generate_ref(
+                        uid=uid,
+                        state_model_name=model_name,
+                        state=state
+                    )
+                )
+
+                tasks.append(task)
+        
+        refs = [
+            task.result() for task in tasks
         ]
+
+        return refs

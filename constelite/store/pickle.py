@@ -23,11 +23,11 @@ class PickleStore(UIDKeyStoreBase):
         if not os.path.isdir(self.path):
             os.makedirs(self.path)
 
-    def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
+    async def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
         path = os.path.join(self.path, uid)
         return os.path.exists(path)
 
-    def store(self, uid: UID, model: StateModel) -> UID:
+    async def store(self, uid: UID, model: StateModel) -> UID:
         path = os.path.join(self.path, uid)
 
         exception = None
@@ -44,12 +44,12 @@ class PickleStore(UIDKeyStoreBase):
 
         return uid
 
-    def get_state_by_uid(
+    async def get_state_by_uid(
             self,
             uid: UID,
             model_type: Type[StateModel]
     ) -> StateModel:
-        if not self.uid_exists(
+        if not await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):
@@ -61,11 +61,11 @@ class PickleStore(UIDKeyStoreBase):
                     values=pickle.load(f)
                 )
 
-    def delete_model(
+    async def delete_model(
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
-        if self.uid_exists(
+        if await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):

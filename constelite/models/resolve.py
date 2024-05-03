@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Type
 
 from constelite.utils import all_subclasses
 from constelite.models import AutoResolveBaseModel, Ref, FlexibleModel
@@ -18,7 +18,8 @@ def get_auto_resolve_model(model_name: str, root_cls=AutoResolveBaseModel):
 
 def resolve_model(
         values: Dict[str, Any],
-        force: bool = False
+        force: bool = False,
+        model_type: Optional[Type['AutoResolveBaseModel']] = None
 ) -> 'AutoResolveBaseModel':
     """Resolve model class.
 
@@ -40,19 +41,20 @@ def resolve_model(
         ValueError: If model with a class name specified by `model`
             can not be found and `force` is set to `False`.
     """
-    model_name = values.pop('model_name', None)
+    if not model_type:
+        model_name = values.pop('model_name', None)
 
-    if model_name is None:
-        if force is False:
-            raise KeyError("'model_name' field is missing or empty")
+        if model_name is None:
+            if force is False:
+                raise KeyError("'model_name' field is missing or empty")
+            else:
+                return FlexibleModel(**values)
+
+        if model_name == "Ref":
+            model_type = Ref
         else:
-            return FlexibleModel(**values)
-
-    if model_name == "Ref":
-        model_type = Ref
-    else:
-        model_type = get_auto_resolve_model(model_name=model_name)
-
+            model_type = get_auto_resolve_model(model_name=model_name)
+    
     if model_type is None:
         if force is False:
             raise ValueError(

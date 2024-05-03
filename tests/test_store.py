@@ -1,5 +1,5 @@
 import unittest
-from typing import Optional, ForwardRef, List
+from typing import Optional, ForwardRef, List, Type
 
 import pandera as pa
 
@@ -14,7 +14,8 @@ from constelite.store import (
     PickleStore,
     NeofluxStore,
     MemcachedStore,
-    PropertyQuery
+    PropertyQuery,
+    BaseStore
 )
 
 
@@ -70,49 +71,55 @@ class Qux(StateModel):
 class StoreTestMixIn():
     store = None
 
-    def run_field_check(self, field_name, field_value):
+    async def uid_exists(self, uid:str, model_type: Type[StateModel]):
+        if isinstance(self.store, BaseStore):
+            return self.store.uid_exists(uid=uid, model_type=model_type)
+        else:
+            return await self.store.uid_exists(uid=uid, model_type=model_type)
+    
+    async def run_field_check(self, field_name, field_value):
         state = Foo(**{field_name: field_value})
-        r_state = self.store.put(ref=ref(state))
+        r_state = await self.store.put(ref=ref(state))
 
-        r_state = self.store.get(ref=r_state)
+        r_state = await self.store.get(ref=r_state)
         state_value = getattr(r_state.state, field_name)
 
         self.assertEqual(field_value, state_value)
 
-    def overwrite_field(self, field_name, field_value_ori, field_value):
+    async def overwrite_field(self, field_name, field_value_ori, field_value):
         foo = Foo(**{field_name: field_value_ori})
 
-        r_foo = self.store.put(ref=ref(foo))
+        r_foo = await self.store.put(ref=ref(foo))
 
         r_foo.state = Foo(**{field_name: field_value})
 
-        self.store.put(ref=r_foo)
+        await self.store.put(ref=r_foo)
 
-        r_foo = self.store.get(ref=r_foo)
+        r_foo = await self.store.get(ref=r_foo)
 
         return r_foo
 
-    def patch_field(self, field_name, field_value_ori, field_value):
+    async def patch_field(self, field_name, field_value_ori, field_value):
         foo = Foo(**{field_name: field_value_ori, 'extra_field': 55})
 
-        r_foo = self.store.put(ref=ref(foo))
+        r_foo = await self.store.put(ref=ref(foo))
 
         r_foo.state = Foo(**{field_name: field_value})
 
-        self.store.patch(ref=r_foo)
+        await self.store.patch(ref=r_foo)
 
-        r_foo = self.store.get(ref=r_foo)
+        r_foo = await self.store.get(ref=r_foo)
 
         return r_foo
 
-    def run_overwrite_check(self, field_name, field_value_ori, field_value):
-        r_state = self.overwrite_field(
+    async def run_overwrite_check(self, field_name, field_value_ori, field_value):
+        r_state = await self.overwrite_field(
             field_name, field_value_ori, field_value
         )
 
         self.assertEqual(getattr(r_state.state, field_name), field_value)
 
-    def run_patch_check(
+    async def run_patch_check(
             self,
             field_name,
             field_value_ori,
@@ -123,7 +130,7 @@ class StoreTestMixIn():
         if expected_field_value is None:
             expected_field_value = field_value
 
-        r_state = self.patch_field(
+        r_state = await self.patch_field(
             field_name, field_value_ori, field_value
         )
         state_value = getattr(r_state.state, field_name)
@@ -132,38 +139,39 @@ class StoreTestMixIn():
         self.assertEqual(expected_field_value, state_value)
         self.assertEqual(extra_value, 55)
 
-    def run_rel_check(self, field_name, field_value):
+    async def run_rel_check(self, field_name, field_value):
         state = Foo(**{field_name: field_value})
-        r_state = self.store.put(ref=ref(state))
+        r_state = await self.store.put(ref=ref(state))
 
-        r_state = self.store.get(ref=r_state)
+        r_state = await self.store.get(ref=r_state)
         state_value = getattr(r_state.state, field_name)
 
         state_rels = []
 
         for r in state_value:
+            r = await self.store.get(ref=r)
             state_rels.append(
-                self.store.get(ref=r).state
+                r.state
             )
         for field_rel in field_value:
             self.assertIn(field_rel.state, state_rels)
 
-    def test_put_int(self):
-        self.run_field_check('int_field', 123)
+    async def test_put_int(self):
+        await self.run_field_check('int_field', 123)
 
-    def test_put_float(self):
-        self.run_field_check('float_field', 10.4)
+    async def test_put_float(self):
+        await self.run_field_check('float_field', 10.4)
 
-    def test_put_bool(self):
-        self.run_field_check('bool_field', True)
+    async def test_put_bool(self):
+        await self.run_field_check('bool_field', True)
 
-    def test_put_model(self):
-        self.run_field_check('model_field', Bar(name="bar"))
+    async def test_put_model(self):
+        await self.run_field_check('model_field', Bar(name="bar"))
 
-    def test_put_list(self):
-        self.run_field_check('list_field', [1, 2, 3])
+    async def test_put_list(self):
+        await self.run_field_check('list_field', [1, 2, 3])
 
-    def test_put_dynamic_int(self):
+    async def test_put_dynamic_int(self):
         value = Dynamic[int](
             points=[
                 TimePoint(
@@ -177,9 +185,9 @@ class StoreTestMixIn():
             ]
         )
 
-        self.run_field_check('dynamic_int', value)
+        await self.run_field_check('dynamic_int', value)
 
-    def test_put_dynamic_tensor(self):
+    async def test_put_dynamic_tensor(self):
         value = Dynamic[Tensor[AbsorbanceSchema]](
             points=[
                 TimePoint(
@@ -199,85 +207,85 @@ class StoreTestMixIn():
             ]
         )
 
-        self.run_field_check('dynamic_tensor', value)
+        await self.run_field_check('dynamic_tensor', value)
 
-    def test_put_association(self):
+    async def test_put_association(self):
         value = [ref(Bar(name='bar'))]
 
-        self.run_rel_check('association', value)
+        await self.run_rel_check('association', value)
 
-    def test_put_self_association(self):
+    async def test_put_self_association(self):
         value = [ref(Foo(int_field=123))]
 
-        self.run_rel_check('self_association', value)
+        await self.run_rel_check('self_association', value)
 
-    def test_put_composition(self):
+    async def test_put_composition(self):
         value = [ref(Bar(name='bar'))]
 
-        self.run_rel_check('composition', value)
+        await self.run_rel_check('composition', value)
 
-    def test_put_aggregation(self):
+    async def test_put_aggregation(self):
         value = [ref(Bar(name='bar'))]
 
-        self.run_rel_check('aggregation', value)
+        await self.run_rel_check('aggregation', value)
 
-    def test_put_backref(self):
+    async def test_put_backref(self):
         foo = Foo(
             baz=[ref(Baz(name='baz'))]
         )
 
-        r_foo = self.store.put(ref=ref(foo))
+        r_foo = await self.store.put(ref=ref(foo))
 
-        r_foo = self.store.get(ref=r_foo)
+        r_foo = await self.store.get(ref=r_foo)
 
-        r_baz = self.store.get(ref=r_foo.state.baz[0])
+        r_baz = await self.store.get(ref=r_foo.state.baz[0])
 
         self.assertIsNotNone(r_baz.state.foo)
         self.assertEqual(r_baz.state.foo[0].uid, r_foo.uid)
 
-    def test_overwrite_int(self):
-        self.run_overwrite_check('int_field', 1, 2)
+    async def test_overwrite_int(self):
+        await self.run_overwrite_check('int_field', 1, 2)
 
-    def test_overwrite_float(self):
-        self.run_overwrite_check('float_field', 1.0, 2.3)
+    async def test_overwrite_float(self):
+        await self.run_overwrite_check('float_field', 1.0, 2.3)
 
-    def test_overwrite_bool(self):
-        self.run_overwrite_check('bool_field', False, True)
+    async def test_overwrite_bool(self):
+        await self.run_overwrite_check('bool_field', False, True)
 
-    def test_overwrite_model(self):
-        self.run_overwrite_check(
+    async def test_overwrite_model(self):
+        await self.run_overwrite_check(
             'model_field',
             Bar(name="bar"),
             Bar(name="barbar")
         )
 
-    def test_overwrite_list(self):
-        self.run_overwrite_check(
+    async def test_overwrite_list(self):
+        await self.run_overwrite_check(
             'list_field',
             [1, 2, 3],
             [4, 5, 6]
         )
 
-    def test_overwrite_specificity(self):
+    async def test_overwrite_specificity(self):
         foo = Foo(
             int_field=123,
             bool_field=False
         )
 
-        r_foo = self.store.put(ref=ref(foo))
+        r_foo = await self.store.put(ref=ref(foo))
 
         r_foo.state = Foo(
             int_field=234
         )
 
-        self.store.put(ref=r_foo)
+        await self.store.put(ref=r_foo)
 
-        r_foo = self.store.get(ref=r_foo)
+        r_foo = await self.store.get(ref=r_foo)
 
         self.assertEqual(r_foo.state.int_field, 234)
         self.assertEqual(r_foo.state.bool_field, False)
 
-    def test_overwrite_dynamic_int(self):
+    async def test_overwrite_dynamic_int(self):
         value1 = Dynamic[int](
             points=[
                 TimePoint(
@@ -304,9 +312,9 @@ class StoreTestMixIn():
             ]
         )
 
-        self.run_overwrite_check('dynamic_int', value1, value2)
+        await self.run_overwrite_check('dynamic_int', value1, value2)
 
-    def test_overwrite_dynamic_tensor(self):
+    async def test_overwrite_dynamic_tensor(self):
         value1 = Dynamic[Tensor[AbsorbanceSchema]](
             points=[
                 TimePoint(
@@ -345,92 +353,93 @@ class StoreTestMixIn():
             ]
         )
 
-        self.run_overwrite_check('dynamic_tensor', value1, value2)
+        await self.run_overwrite_check('dynamic_tensor', value1, value2)
 
-    def test_overwrite_association(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
+    async def test_overwrite_association(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
 
-        r_foo = self.overwrite_field(
+        r_foo = await self.overwrite_field(
             'association',
             [r_bar_ori],
             [ref(Bar(name='barbar'))]
         )
 
-        r_bar = self.store.get(ref=r_foo.state.association[0])
+        r_bar = await self.store.get(ref=r_foo.state.association[0])
 
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.association), 1)
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar_ori.uid,
                 model_type=Bar
             )
         )
 
-    def test_overwrite_aggregation(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
+    async def test_overwrite_aggregation(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
 
-        r_foo = self.overwrite_field(
+        r_foo = await self.overwrite_field(
             'aggregation',
             [r_bar_ori],
             [ref(Bar(name='barbar'))]
         )
 
-        r_bar = self.store.get(ref=r_foo.state.aggregation[0])
+        r_bar = await self.store.get(ref=r_foo.state.aggregation[0])
 
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.aggregation), 1)
+        
         self.assertTrue(
-            self.store.uid_exists(
-                uid=r_bar_ori.uid,
+            await self.uid_exists(
+                uid=r_bar.uid,
                 model_type=Bar
             )
         )
 
-    def test_overwrite_composition(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
+    async def test_overwrite_composition(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
 
-        r_foo = self.overwrite_field(
+        r_foo = await self.overwrite_field(
             'composition',
             [r_bar_ori],
             [ref(Bar(name='barbar'))]
         )
 
-        r_bar = self.store.get(ref=r_foo.state.composition[0])
+        r_bar = await self.store.get(ref=r_foo.state.composition[0])
 
         self.assertEqual(r_bar.state.name, 'barbar')
         self.assertEqual(len(r_foo.state.composition), 1)
         self.assertFalse(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar_ori.uid,
                 model_type=Bar
             )
         )
 
-    def test_patch_int(self):
-        self.run_patch_check('int_field', 1, 2)
+    async def test_patch_int(self):
+        await self.run_patch_check('int_field', 1, 2)
 
-    def test_patch_float(self):
-        self.run_patch_check('float_field', 1.0, 2.3)
+    async def test_patch_float(self):
+        await self.run_patch_check('float_field', 1.0, 2.3)
 
-    def test_patch_bool(self):
-        self.run_patch_check('bool_field', False, True)
+    async def test_patch_bool(self):
+        await self.run_patch_check('bool_field', False, True)
 
-    def test_patch_model(self):
-        self.run_patch_check(
+    async def test_patch_model(self):
+        await self.run_patch_check(
             'model_field',
             Bar(name="bar"),
             Bar(name="barbar")
         )
 
-    def test_patch_list(self):
-        self.run_overwrite_check(
+    async def test_patch_list(self):
+        await self.run_overwrite_check(
             'list_field',
             [1, 2, 3],
             [4, 5, 6]
         )
 
-    def test_patch_dynamic_int(self):
+    async def test_patch_dynamic_int(self):
         value1 = Dynamic[int](
             points=[
                 TimePoint(
@@ -461,12 +470,12 @@ class StoreTestMixIn():
             points=value1.points + value2.points
         )
 
-        self.run_patch_check(
+        await self.run_patch_check(
             'dynamic_int',
             value1, value2, expected
         )
 
-    def test_patch_dynamic_tensor(self):
+    async def test_patch_dynamic_tensor(self):
         value1 = Dynamic[Tensor[AbsorbanceSchema]](
             points=[
                 TimePoint(
@@ -509,16 +518,16 @@ class StoreTestMixIn():
             points=value1.points + value2.points
         )
 
-        self.run_patch_check(
+        await self.run_patch_check(
             'dynamic_tensor',
             value1, value2, expected
         )
 
-    def test_patch_association(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
-        r_bar = self.store.put(ref=(ref(Bar(name='barbar'))))
+    async def test_patch_association(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
+        r_bar = await self.store.put(ref=(ref(Bar(name='barbar'))))
 
-        r_foo = self.patch_field(
+        r_foo = await self.patch_field(
             'association',
             [r_bar_ori],
             [r_bar]
@@ -531,17 +540,17 @@ class StoreTestMixIn():
 
         self.assertEqual(len(r_foo.state.association), 1)
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar_ori.uid,
                 model_type=Bar
             )
         )
 
-    def test_patch_aggregation(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
-        r_bar = self.store.put(ref=(ref(Bar(name='barbar'))))
+    async def test_patch_aggregation(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
+        r_bar = await self.store.put(ref=(ref(Bar(name='barbar'))))
 
-        r_foo = self.patch_field(
+        r_foo = await self.patch_field(
             'aggregation',
             [r_bar_ori],
             [r_bar]
@@ -550,13 +559,13 @@ class StoreTestMixIn():
         self.assertEqual(len(r_foo.state.aggregation), 2)
 
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar_ori.uid,
                 model_type=Bar
             )
         )
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar.uid,
                 model_type=Bar
             )
@@ -571,11 +580,11 @@ class StoreTestMixIn():
             r_foo.state.aggregation,
         )
 
-    def test_patch_composition(self):
-        r_bar_ori = self.store.put(ref=ref(Bar(name='bar')))
-        r_bar = self.store.put(ref=(ref(Bar(name='barbar'))))
+    async def test_patch_composition(self):
+        r_bar_ori = await self.store.put(ref=ref(Bar(name='bar')))
+        r_bar = await self.store.put(ref=(ref(Bar(name='barbar'))))
 
-        r_foo = self.patch_field(
+        r_foo = await self.patch_field(
             'composition',
             [r_bar_ori],
             [r_bar]
@@ -584,13 +593,13 @@ class StoreTestMixIn():
         self.assertEqual(len(r_foo.state.composition), 2)
 
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar_ori.uid,
                 model_type=Bar
             )
         )
         self.assertTrue(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_bar.uid,
                 model_type=Bar
             )
@@ -605,21 +614,21 @@ class StoreTestMixIn():
             r_foo.state.composition,
         )
 
-    def test_delete_simple(self):
-        r_foo = self.store.put(ref=ref(Foo()))
+    async def test_delete_simple(self):
+        r_foo = await self.store.put(ref=ref(Foo()))
 
-        self.store.delete(ref=r_foo)
+        await self.store.delete(ref=r_foo)
 
         self.assertFalse(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_foo.uid,
                 model_type=Foo
             )
         )
 
-    def test_delete_composite(self):
-        r_bar = self.store.put(ref=ref(Bar(name='bar')))
-        r_foo = self.store.put(
+    async def test_delete_composite(self):
+        r_bar = await self.store.put(ref=ref(Bar(name='bar')))
+        r_foo = await self.store.put(
             ref=ref(
                 Foo(
                     composition=[r_bar]
@@ -627,22 +636,24 @@ class StoreTestMixIn():
             )
         )
 
-        self.store.delete(ref=r_foo)
+        await self.store.delete(ref=r_foo)
 
         self.assertFalse(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_foo.uid,
                 model_type=Foo
             )
         )
-        self.assertFalse(self.store.uid_exists(
-            uid=r_bar.uid,
-            model_type=Bar
-        ))
+        self.assertFalse(
+            await self.uid_exists(
+                uid=r_bar.uid,
+                model_type=Bar
+            )
+        )
 
-    def test_delete_association(self):
-        r_bar = self.store.put(ref=ref(Bar(name='bar')))
-        r_foo = self.store.put(
+    async def test_delete_association(self):
+        r_bar = await self.store.put(ref=ref(Bar(name='bar')))
+        r_foo = await self.store.put(
             ref=ref(
                 Foo(
                     association=[r_bar]
@@ -650,30 +661,32 @@ class StoreTestMixIn():
             )
         )
 
-        self.store.delete(ref=r_foo)
+        await self.store.delete(ref=r_foo)
 
         self.assertFalse(
-            self.store.uid_exists(
+            await self.uid_exists(
                 uid=r_foo.uid,
                 model_type=Foo
             )
         )
-        self.assertTrue(self.store.uid_exists(
-            uid=r_bar.uid,
-            model_type=Bar
-        ))
+        self.assertTrue(
+            await self.uid_exists(
+                uid=r_bar.uid,
+                model_type=Bar
+            )
+        )
 
-    def test_property_query(self):
+    async def test_property_query(self):
         try:
             self.store._validate_method('QUERY')
 
-            self.store.put(
+            await self.store.put(
                 ref=ref(
                     Foo(int_field=1234)
                 )
             )
 
-            foos = self.store.query(
+            foos = await self.store.query(
                 query=PropertyQuery(
                     int_field=1234
                 ),
@@ -684,33 +697,33 @@ class StoreTestMixIn():
         except NotImplementedError:
             pass
 
-    def test_get_all_property_query(self):
+    async def test_get_all_property_query(self):
         # Create and delete the items in the test to control numbers
         try:
             self.store._validate_method('QUERY')
 
-            self.store.put(
+            await self.store.put(
                 ref=ref(
                     Qux(name="Qux1")
                 )
             )
-            self.store.put(
+            await self.store.put(
                 ref=ref(
                     Qux(name="Qux2")
                 )
             )
-            quxes = self.store.query(
+            quxes = await self.store.query(
                 include_states=True,
                 model_name="Qux"
             )
             self.assertTrue(len(quxes) == 2)
             for q in quxes:
-                self.store.delete(q)
+                await self.store.delete(q)
         except NotImplementedError:
             pass
 
 
-class TestPickleStore(unittest.TestCase, StoreTestMixIn):
+class TestPickleStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
     store = PickleStore(
         uid=get_config("stores", "pickle_store", "uid"),
         name="Pickle Rick",
@@ -718,7 +731,7 @@ class TestPickleStore(unittest.TestCase, StoreTestMixIn):
     )
 
 
-class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
+class TestNeofluxStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
     store = NeofluxStore(
         uid=get_config("stores", "neoflux_store", "uid"),
         name="StarGate",
@@ -735,13 +748,9 @@ class TestNeofluxStore(unittest.TestCase, StoreTestMixIn):
     )
 
 
-class TestMemcachedStore(unittest.TestCase, StoreTestMixIn):
+class TestMemcachedStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
     # Run a local memcached instance to get this to work
     store = MemcachedStore(
         uid=get_config("stores", "memcached_store", "uid"),
         host=get_config("stores", "memcached_store", "host"),
     )
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -1,5 +1,6 @@
 from typing import Any
 from litestar import Controller, post
+import asyncio
 
 from constelite.models import StateModel, Ref
 from constelite.api.starlite.requests import (
@@ -12,8 +13,8 @@ class StoreController(Controller):
     path = '/store'
     tags = ["Store"]
 
-    @post('/put', summary="Put", sync_to_thread=True)
-    def put(self, data: PutRequest, api: Any) -> Ref:
+    @post('/put', summary="Put")
+    async def put(self, data: PutRequest, api: Any) -> Ref:
         """
         Put will attemp to create a new record in the store provided.
 
@@ -26,10 +27,10 @@ class StoreController(Controller):
         if store is None:
             raise ValueError("Store not found")
 
-        return store.put(ref)
+        return await store.put(ref)
 
-    @post('/patch', summary="Patch", sync_to_thread=True)
-    def patch(self, data: PatchRequest, api: Any) -> Ref:
+    @post('/patch', summary="Patch")
+    async def patch(self, data: PatchRequest, api: Any) -> Ref:
         """
         Patch will attemp update an existing store record.
 
@@ -46,10 +47,10 @@ class StoreController(Controller):
 
         if store is None:
             raise ValueError("Store not found")
-        return store.patch(ref)
+        return await store.patch(ref)
 
-    @post('/get', summary="Get", sync_to_thread=True)
-    def get(self, data: GetRequest, api: Any) -> StateModel:
+    @post('/get', summary="Get")
+    async def get(self, data: GetRequest, api: Any) -> StateModel:
         """
         Get will try to retrieve a state of the existing record.
         """
@@ -64,10 +65,10 @@ class StoreController(Controller):
         if store is None:
             raise ValueError("Store not found")
 
-        return store.get(ref)
+        return await store.get(ref)
 
-    @post('/delete', summary="Delete", sync_to_thread=True)
-    def delete(self, data: DeleteRequest, api: Any) -> None:
+    @post('/delete', summary="Delete")
+    async def delete(self, data: DeleteRequest, api: Any) -> None:
         """
         Delete will delete the existing record along with
         the records linked by a `Composition` type relationship.
@@ -78,10 +79,10 @@ class StoreController(Controller):
 
         if store is None:
             raise ValueError("Store not found")
-        return store.delete(ref)
+        return await store.delete(ref)
 
-    @post('/query', summary="Query", sync_to_thread=True)
-    def query(self, data: QueryRequest, api: Any) -> None:
+    @post('/query', summary="Query")
+    async def query(self, data: QueryRequest, api: Any) -> None:
         """
         Query will return store records mathing the query parameters.
         """
@@ -89,7 +90,7 @@ class StoreController(Controller):
         if store is None:
             raise ValueError("Store not found")
 
-        return store.query(
+        return await store.query(
             query=data.query,
             model_name=data.model_name,
             include_states=data.include_states

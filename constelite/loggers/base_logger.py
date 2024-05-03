@@ -2,15 +2,20 @@ from pydantic.v1 import BaseModel, Field
 from loguru import logger
 from typing import Literal, Optional, Any
 
-
-class Logger(BaseModel):
+class Logger:
     """
     Class for logging progress, warnings and errors during protocols.
     This base class just outputs to loguru logger
     """
     api: Optional[Any]
 
-    def log(self, message: Any,
+    def __init__(self, api: "ConsteliteAPI"):
+        self.api = api
+
+    async def initialise(self):
+        pass
+
+    async def log(self, message: Any,
             level: Literal['DEBUG', 'INFO', 'WARNING', 'ERROR'] = 'INFO'):
         """
         Log the message through loguru and add to a Notion page too.

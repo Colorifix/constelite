@@ -1,16 +1,12 @@
-from typing import Any, List, Union, Optional
-
+from typing import Any, List, Union
+import asyncio
+import aiohttp
 import os
 
-import requests.exceptions
 from pydantic.v1 import BaseModel, Extra
 
-from requests import Session
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
 from constelite.models import resolve_model, StateModel, StaticTypes
-
+from constelite.api.starlite.controllers.models import Job, JobStatus
 from loguru import logger
 
 
@@ -76,7 +72,7 @@ class StarliteClientEndpoint:
             endpoint=os.path.join(self.endpoint, key)
         )
 
-    def _call(self, wait_for_response=True, **kwargs) -> Any:
+    async def _call(self, wait_for_response=True, **kwargs) -> Any:
         """
         Calls the endpoint and handles the response.
         Arguments:
@@ -91,58 +87,36 @@ class StarliteClientEndpoint:
             SystemError: If the endpoint returns a 500 or 400 error.
         """
         obj = RequestModel(**kwargs)
-
-        if not wait_for_response:
-            try:
-                ret = self.client._http.post(
-                    self.url,
-                    data=obj.json(),
-                    headers={
-                        "Authorization": f"Bearer {self.client.token}"
-                    },
-                    # Large timeout for the connection
-                    # We don't wait for the response so small timeout for read
-                    timeout=(12.05, 0.001)
-                )
-            except requests.exceptions.ReadTimeout as e:
-                # Only catch the Read Timeout
-                return
-        else:
-            ret = self.client._http.post(
-                self.url,
-                data=obj.json(),
-                headers={
-                    "Authorization": f"Bearer {self.client.token}"
-                }
-            )
- 
-        if ret.status_code == 201:
-            if ret.text != '':
-                data = ret.json()
-                return resolve_return_value(data=data)
-        elif ret.status_code == 500 or ret.status_code == 400:
-            data = ret.json()
-            logger.error(data.get('extra', None))
-            raise SystemError(data['detail'])
-        elif ret.status_code == 404:
-            logger.error(f"URL {self.url} is not found")
-            raise SystemError("Invalid url")
-        else:
-            logger.error(
-                f"Failed to receive a response. {ret.status_code}: {ret.text}"
-            )
-    def __call__(self, wait_for_response=True, **kwargs) -> Any:
-        return self._call(wait_for_response=wait_for_response, **kwargs)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.url, data=obj.json()) as ret:
+                if ret.status == 201:
+                    if ret.text != '':
+                        data = await ret.json()
+                        return resolve_return_value(data=data)
+                elif ret.status == 500 or ret.status == 400:
+                    data = await ret.json()
+                    logger.error(data.get('extra', None))
+                    raise SystemError(data['detail'])
+                elif ret.status == 404:
+                    logger.error(f"URL {self.url} is not found")
+                    raise SystemError("Invalid url")
+                else:
+                    logger.error(
+                        f"Failed to receive a response."
+                        f"{ret.status}: {ret.text}"
+                    )
+    async def __call__(self, wait_for_response=True, **kwargs) -> Any:
+        return await self._call(wait_for_response=wait_for_response, **kwargs)
 
 class ProtocolsEndpoint(StarliteClientEndpoint):
     """
     Special endpoint class for sending protocol requests.
     """
-    def __call__(self, wait_for_response=True, **kwargs) -> Any:
+    async def __call__(self, wait_for_response=True, **kwargs) -> Any:
         logger = kwargs.pop('logger', None)
         args = kwargs
 
-        return self._call(wait_for_response=wait_for_response, args=args, logger=logger)
+        return await self._call(wait_for_response=wait_for_response, args=args, logger=logger)
 
 class JobsEndpoint(ProtocolsEndpoint):
     """
@@ -154,20 +128,29 @@ class JobsEndpoint(ProtocolsEndpoint):
             client=self.client,
             endpoint="jobs/fetch"
         )
+
+    async def get_job_result(self, job: Job, check_interval: int = 1):
+        if not self.is_root:
+            raise Exception("Can't get job result from non-root client")
+
+        while job.status not in [JobStatus.success, JobStatus.failed]:
+            await asyncio.sleep(check_interval)
+            job = await self.fetch(job=job)
+
+        if job.status == JobStatus.success:
+            return job.result
+        else:
+            raise Exception(job.error)
+
 class StarliteClient:
-    def __init__(self, url: str, token: Optional[str] = None):
+    """
+    Handles communication with the Starlite API.
+
+    Arguments:
+        url: URL of the Starlite API.
+    """
+    def __init__(self, url: str) -> None:
         self.url = url
-        self.token = token or os.environ.get('CONSTELITE_TOKEN', None)
-        retry_strategy = Retry(
-            total=3,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "OPTIONS"]
-        )
-
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self._http = Session()
-
-        self._http.mount("https://", adapter)
     
     @property
     def protocols(self) -> StarliteClientEndpoint:
@@ -185,7 +168,7 @@ class StarliteClient:
             is_root=True
         )
 
-    def __getattr__(self, key) -> "StarliteClient":
+    def __get_attr__(self, key) -> "StarliteClient":
         return StarliteClientEndpoint(
             client=self,
             endpoint=key,

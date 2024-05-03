@@ -1,3 +1,4 @@
+import asyncio
 import re
 from typing import Type, Literal, Union
 from typing import get_origin, get_args
@@ -34,3 +35,22 @@ def is_optional(field):
 
 def is_annotated(field):
     return get_origin(field) is Annotated
+
+
+def to_thread(fn):
+    async def wrapper(*args, **kwargs):
+        return await asyncio.to_thread(fn, *args, **kwargs)
+    
+    wrapper._sync_fn = fn
+
+    return wrapper
+
+async def async_map(fn, iterable):
+    tasks = []
+    async with asyncio.TaskGroup() as tg:
+        for item in iterable:
+            tasks.append(
+                tg.create_task(fn(item))
+            )
+    
+    return [task.result() for task in tasks]

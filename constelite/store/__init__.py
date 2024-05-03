@@ -2,6 +2,9 @@ from constelite.store.base import (
     Query, RefQuery, BackrefQuery,
     BaseStore, PropertyQuery
 )
+
+from constelite.store.base_async import AsyncBaseStore
+
 from constelite.store.memory import MemoryStore
 from constelite.store.pickle import PickleStore
 from constelite.store.memcached import MemcachedStore
@@ -10,7 +13,7 @@ from constelite.store.neoflux import (
     NeoConfig,
     InfluxConfig
 )
-from constelite.store.notion import NotionStore
+from constelite.store.notion_async import NotionStore
 
 __all__ = [
     'Query',
@@ -18,6 +21,7 @@ __all__ = [
     'PropertyQuery',
     'BackrefQuery',
     'BaseStore',
+    'AsyncBaseStore',
     'PickleStore',
     'NeofluxStore',
     'NeoConfig',
