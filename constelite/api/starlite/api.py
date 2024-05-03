@@ -35,22 +35,19 @@ async def ping() -> bool:
 
 
 class StarliteAPI(ConsteliteAPI):
-    app: Optional[Litestar] = Field(exclude=True)
-    index_template: Optional[str]
-    static_dir: Optional[str]
-    template_dir: Optional[str]
-
     def __init__(
         self,
         index_template=None,
         template_dir=None,
         static_dir=None,
+        docs_dir=None,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.index_template = index_template
         self.template_dir = template_dir
         self.static_dir = static_dir
+        self.docs_dir = docs_dir
 
     async def provide_api(self):
         """Provides instance of self to route handlers
@@ -92,6 +89,18 @@ class StarliteAPI(ConsteliteAPI):
                 create_static_files_router(
                     directories=[self.static_dir],
                     path="/static"
+                )
+            )
+
+        if (
+            self.docs_dir is not None
+            and os.path.exists(self.docs_dir)
+        ):
+            open_route_handlers.append(
+                create_static_files_router(
+                    directories=[self.docs_dir],
+                    path="/docs",
+                    html_mode=True
                 )
             )
 

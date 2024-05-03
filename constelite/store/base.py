@@ -7,7 +7,8 @@ from typing import (
     Callable,
     Type,
     Any,
-    ForwardRef
+    ForwardRef,
+    TypeVar
 )
 
 from functools import partial
@@ -28,6 +29,8 @@ from constelite.models import (
     UID,
     get_auto_resolve_model
 )
+
+M = TypeVar("M")
 
 GUIDMap = ForwardRef("GUIDMap")
 
@@ -69,6 +72,9 @@ StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
 
 
 class BaseStore(StoreModel):
+    """
+    Base class for all stores.
+    """
     _allowed_methods: ClassVar[
         List[StoreMethod]] = []
 
@@ -308,7 +314,23 @@ class BaseStore(StoreModel):
         )
 
     @to_thread
-    def put(self, ref: Ref) -> Ref:
+    def put(self, ref: Ref[M]) -> Ref[M]:
+        """
+        Creates a new record if `ref.record` is `None` or overwrites the existing record with 
+        properties from `ref.state`. Only fields that are set in the `ref.state` are updated.
+        
+        For association and aggregation relationships, overwrite will keep the records that were
+        previously related.
+        
+        For composition relationships, overwrite will delete previously-related
+        records.
+
+        Arguments:
+            ref: Reference to the record to be created or overwritten.
+        
+        Returns:
+            Reference to the created or overwritten record.
+        """
         self._validate_method('PUT')
         ref = self._fetch_record_by_guid(ref)
 
@@ -384,9 +406,26 @@ class BaseStore(StoreModel):
                 state_model_name=ref.state_model_name,
                 guid=ref.guid
             )
-
     @to_thread
-    def patch(self, ref: Ref) -> Ref:
+    def patch(self, ref: Ref[M]) -> Ref[M]:
+        """
+        Patches properties of the existing record with the state provided in `ref.state`.
+
+        For static properties, `patch` acts the same way as `put`. For dynamic properties,
+        existing time points will be preserved and new time points, given in `ref.state`,
+        will be added.
+
+        For association relationships, `patch` will act the same way as `put`.
+        
+        For aggregation and composition relationships, `patch` will keep the records
+        that were previously related and add new relationships from `ref.state`.
+
+        Arguments:
+            ref: Reference to the record to be patched.
+
+        Returns:
+            Reference to the patched record.
+        """
         self._validate_method('PATCH')
         ref = self._validate_ref_full(ref=ref)
 
@@ -437,6 +476,14 @@ class BaseStore(StoreModel):
 
     @to_thread
     def delete(self, ref: Ref) -> None:
+        """
+        Deletes the record referenced by `ref`.
+
+        For composition relationships will also delete any related records.
+
+        Arguments:
+            ref: Reference to the record to be deleted.
+        """
         self._validate_method('DELETE')
 
         ref = self._validate_ref_full(ref=ref)
@@ -489,7 +536,16 @@ class BaseStore(StoreModel):
             model_type=model_type
         )
     @to_thread
-    def get(self, ref: Ref) -> Ref:
+    def get(self, ref: Ref[M]) -> Ref[M]:
+        """
+        Returns the record referenced by `ref`.
+
+        Arguments:
+            ref: Reference to the record to be retrieved.
+        
+        Returns:
+            Reference to the retrieved record.
+        """
         self._validate_method('GET')
         ref = self._validate_ref_full(ref)
 
@@ -515,6 +571,17 @@ class BaseStore(StoreModel):
         include_states: bool,
         query: Optional[Query] = None,
     ) -> List[Ref]:
+        """
+        Queries the store.
+
+        Arguments:
+            query: Query to be executed.
+            model_name: Name of the model to be queried.
+            include_states: Whether to include the state of the queried records.
+        
+        Returns:
+            List of references to the records that match the query.
+        """
         self._validate_method('QUERY')
         model_type = get_auto_resolve_model(
             model_name=model_name,
@@ -529,15 +596,6 @@ class BaseStore(StoreModel):
             model_type=model_type,
             include_states=include_states
         )
-        # Experimental
-        #
-        # if include_states:
-        #     for field_name, field in model_type.__fields__.items():
-        #         if issubclass(field.type_, Relationship):
-        #             for uid, state in uids.items():
-        #                 rels = getattr(state, field_name)
-        #                 for ref in rels:
-        #                     ref.state = self.get(ref=ref)
 
         return [
             self.generate_ref(

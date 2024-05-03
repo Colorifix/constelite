@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar, Optional, Any, Union, Type
+from typing import Generic, TypeVar, Optional, Any, Union, Type, Self
 from copy import deepcopy
 
 from pydantic.v1.generics import GenericModel
@@ -11,6 +11,15 @@ M = TypeVar('StateModel')
 
 
 class Ref(GenericModel, Generic[M]):
+    """
+    Reference to a record in the store.
+
+    Attributes:
+        record: Record metadata. Contains the unique identifier of the record and the store.
+        state: State of the record.
+        state_model_name: Name of the state model of the record.
+        guid: Global identifier of the entity that the record belongs to.
+    """
     model_name = 'Ref'
     record: Optional[StoreRecordModel]
     guid: Optional[UUID4]
@@ -20,6 +29,9 @@ class Ref(GenericModel, Generic[M]):
 
     @property
     def uid(self):
+        """
+        Unique identifier of the record.
+        """
         return self.record.uid
 
     @validator('state_model_name', always=True)
@@ -38,7 +50,13 @@ class Ref(GenericModel, Generic[M]):
             else:
                 return 'Any'
 
-    def strip(self):
+    def strip(self) -> Self:
+        """
+        Strips state from the reference.
+        
+        Returns:
+            A copy of the reference without the state.
+        """
         return Ref(
             record=self.record,
             guid=self.guid,
@@ -96,7 +114,19 @@ def ref(
         uid: Optional[str] = None,
         store: Optional[StoreModel] = None,
         guid: Optional[UUID4] = None
-):
+) -> Self:
+    """
+    Generates a reference from either state, reference of state model type.
+
+    Arguments:
+        model: State model or reference to state model.
+        uid: Unique identifier of the record.
+        store: Store to which the record belongs.
+        guid: Global identifier of the entity that the record belongs to. Currently not used.
+    
+    Returns:
+        A reference to the record.
+    """
     state_model_name = None
     if isinstance(model, StateModel):
         state = model

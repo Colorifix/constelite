@@ -13,7 +13,7 @@ from constelite.store.uid_key_base import (
 
 class MemoryStore(UIDKeyStoreBase):
     path: Optional[str] = Field(exclude=True)
-    memory: Optional[Dict] = Field(exclude=True)
+    memory: Optional[Dict] = Field(exclude=True, default=None)
 
     def __init__(self, **data):
         super().__init__(**data)

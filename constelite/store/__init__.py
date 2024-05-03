@@ -15,6 +15,8 @@ from constelite.store.neoflux import (
 )
 from constelite.store.notion_async import NotionStore
 
+from constelite.store.memory import MemoryStore
+
 __all__ = [
     'Query',
     'RefQuery',

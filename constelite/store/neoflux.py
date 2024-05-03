@@ -42,6 +42,12 @@ class InfluxConfig(BaseModel):
 
 
 class NeofluxStore(BaseStore):
+    """
+    A hybrid Neo4j-InfluxDB store.
+
+    Static properties and relationships are stored in Neo4j.
+    Dynamic properties are stored in InfluxDB.
+    """
     _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
 
     neo_config: NeoConfig = Field(exclude=True)

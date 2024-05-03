@@ -310,6 +310,9 @@ class ModelHandler(BaseModel):
 
 
 class NotionStore(BaseStore):
+    """
+    Notion store implementation.
+    """
     _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
 
     access_token: str = Field(exclude=True)

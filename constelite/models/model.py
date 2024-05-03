@@ -4,8 +4,13 @@ from constelite.models.auto_resolve import AutoResolveBaseModel
 
 
 class StateModel(AutoResolveBaseModel):
+    """Base class for all state models.
+    """
     @classmethod
     def fix_backrefs(cls):
+        """
+        Fixes all `ForwardRef`s in the model's `Backref` fields to the actual model class.
+        """
         from constelite.models.relationships import Backref
 
         for _, field_info in cls.__fields__.items():
