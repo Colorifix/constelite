@@ -1,12 +1,31 @@
 import unittest
 from typing import Optional, ForwardRef, List
 
+import pandera as pa
+
 from constelite.models import (
     StateModel, ref, Dynamic, TimePoint,
+    Tensor, TensorSchema,
     Association, Composition, Aggregation,
     backref
 )
 from constelite.models import StateInspector
+
+
+class AbsorbanceSchema(TensorSchema):
+    pa_schema = pa.SeriesSchema(
+        'float64',
+        name='absorbance',
+        index=pa.MultiIndex([
+            pa.Index(
+                'int',
+                checks=[
+                    pa.Check(lambda a: a > 0)
+                ],
+                name='wavelenghts'
+            )
+        ])
+    )
 
 
 class BarInspector(StateModel):
@@ -16,6 +35,11 @@ class BarInspector(StateModel):
 class BazInspector(StateModel):
     name: str
     foo: backref(model="FooInspector", from_field="baz")
+
+
+class BazUnfixedBackrefs(StateModel):
+    name: str
+    foo: backref(model="FooInspector", from_field="baz_unfixed_backrefs")
 
 
 class FooInspector(StateModel):
@@ -28,15 +52,22 @@ class FooInspector(StateModel):
     extra_field: Optional[int]
 
     dynamic_int: Optional[Dynamic[int]]
+    dynamic_tensor: Optional[Dynamic[Tensor[AbsorbanceSchema]]]
 
     self_association: Optional[Association[ForwardRef("FooInspector")]]
     association: Optional[Association[BarInspector]]
     composition: Optional[Composition[BarInspector]]
     aggregation: Optional[Aggregation[BarInspector]]
     baz: Optional[Association[BazInspector]]
+    baz_unfixed_backrefs: Optional[Association[BazUnfixedBackrefs]]
+
+
+class QuxInspector(FooInspector):
+    pass
 
 
 BazInspector.fix_backrefs()
+# Not fixing backrefs for BazUnfixedBackrefs
 
 
 class TestInspector(unittest.TestCase):
@@ -77,12 +108,39 @@ class TestInspector(unittest.TestCase):
             inspector.aggregations['aggregation'].to_field_name,
         )
 
-    def test_ref_with_backref(self):
+    def test_rel_with_backref(self):
         foo = FooInspector(
             baz=[ref(BazInspector(name='baz'))]
         )
 
         inspector = StateInspector.from_state(foo)
+
+        self.assertTrue('baz' in inspector.associations)
+        self.assertEqual(inspector.associations['baz'].from_field_name, 'baz')
+        self.assertEqual(inspector.associations['baz'].to_field_name, 'foo')
+
+    def test_rel_with_unfixed_backref(self):
+        # This only matters for subclasses of the model with the relationship
+        foo = QuxInspector(
+            baz_unfixed_backrefs=[ref(BazUnfixedBackrefs(name='baz'))]
+        )
+
+        inspector = StateInspector.from_state(foo)
+
+        self.assertTrue('baz_unfixed_backrefs' in inspector.associations)
+        self.assertEqual(
+            inspector.associations['baz_unfixed_backrefs'].from_field_name,
+            'baz_unfixed_backrefs')
+        self.assertEqual(
+            inspector.associations['baz_unfixed_backrefs'].to_field_name,
+            'foo')
+
+    def test_subclass_backref(self):
+        qux = QuxInspector(
+            baz=[ref(BazInspector(name='baz'))]
+        )
+
+        inspector = StateInspector.from_state(qux)
 
         self.assertTrue('baz' in inspector.associations)
         self.assertEqual(inspector.associations['baz'].from_field_name, 'baz')

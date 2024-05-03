@@ -11,6 +11,8 @@ from constelite.models.relationships import (
     Association, Aggregation, Composition, Backref
 )
 from constelite.models.dynamic import Dynamic
+from loguru import logger
+
 
 
 StaticTypes = Union[
@@ -26,6 +28,15 @@ def type_name(model: Union[Type[StateModel], ForwardRef]) -> str:
         return model.__name__
     elif isinstance(model, ForwardRef):
         return model.__forward_arg__
+
+
+def type_class(model: Union[Type[StateModel], ForwardRef]) -> Type[StateModel]:
+    if isinstance(model, type):
+        return model
+    elif isinstance(model, ForwardRef):
+        logger.warning(
+            f"ForwardRef in a Backref: {model}. Have you run fix_backrefs?")
+        return resolve_forward_ref(model, StateModel)
 
 
 class RelInspector(BaseModel):
@@ -60,8 +71,10 @@ class RelInspector(BaseModel):
                     isinstance(f.type_, type) and
                     issubclass(f.type_, Backref)
                     and (
-                        type_name(f.type_.model)
-                        == type_name(from_model_type)
+                        (type_name(f.type_.model)
+                         == type_name(from_model_type)) or
+                        issubclass(type_class(from_model_type),
+                                   type_class(f.type_.model))
                     )
                     and (
                         f.field_info.extra.get('from_field', None)
