@@ -1,0 +1,88 @@
+type Query {
+  foographqls(guid: String, uid: String, uids: [String], guids: [String], model_name: String, int_field: Int, str_field: String, bool_field: Int, float_field: Float, model_field: GenericScalar, list_field: [Int], datetime_field: DateTime, uuid_field: ID, constrained_int_field: Int, enum_type: Enum1, dynamic_int: GenericScalar, self_association: String, association: String, composition: String, aggregation: String, baz: String): [FooGraphQLGQL]
+}
+
+type FooGraphQLGQL {
+  model_name: String
+  guid: String
+  record: RecordGQL
+  state_model_name: String
+  state: FooGraphQLGQLstate
+}
+
+"""Equivalent of the Constelite Ref Record."""
+type RecordGQL {
+  uid: String
+  store: StoreModelGQL
+}
+
+type StoreModelGQL {
+  uid: String
+  name: String
+}
+
+type FooGraphQLGQLstate {
+  model_name: String
+  int_field: Int
+  str_field: String
+  bool_field: Int
+  float_field: Float
+  model_field: GenericScalar
+  list_field: [Int]
+  datetime_field: DateTime
+  uuid_field: ID
+  constrained_int_field: Int
+  enum_type: Enum1
+  dynamic_int: GenericScalar
+  self_association: [FooGraphQLGQL]
+  association: [BarGraphQLGQL]
+  composition: [BarGraphQLGQL]
+  aggregation: [BarGraphQLGQL]
+  baz: [BazGraphQLGQL]
+}
+
+"""
+The `GenericScalar` scalar type represents a generic
+GraphQL scalar value that could be:
+String, Boolean, Int, Float, List or Object.
+"""
+scalar GenericScalar
+
+"""
+The `DateTime` scalar type represents a DateTime
+value as specified by
+[iso8601](https://en.wikipedia.org/wiki/ISO_8601).
+"""
+scalar DateTime
+
+"""An enumeration."""
+enum Enum1 {
+  a
+}
+
+type BarGraphQLGQL {
+  model_name: String
+  guid: String
+  record: RecordGQL
+  state_model_name: String
+  state: BarGraphQLGQLstate
+}
+
+type BarGraphQLGQLstate {
+  model_name: String
+  name: String
+}
+
+type BazGraphQLGQL {
+  model_name: String
+  guid: String
+  record: RecordGQL
+  state_model_name: String
+  state: BazGraphQLGQLstate
+}
+
+type BazGraphQLGQLstate {
+  model_name: String
+  name: String
+  foo: [FooGraphQLGQL]
+}

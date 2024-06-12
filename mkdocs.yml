@@ -43,7 +43,9 @@ nav:
   - Getting started:
     - getting_started/index.md
     - User guide:
+      - getting_started/user_guide/index.md
       - Calling protocols: getting_started/user_guide/calling_protocols.md
+      - GraphQL queries: getting_started/user_guide/graphql.md
     - Key concepts:
       - getting_started/key_concepts/index.md
       - State Model: getting_started/key_concepts/state_model.md
@@ -51,10 +53,12 @@ nav:
       - Reference: getting_started/key_concepts/ref.md
       - Protocol: getting_started/key_concepts/protocol.md
       - API: getting_started/key_concepts/api.md
-
-  - API:
-    - constelite:
-      - models:
-        - API/constelite/models/state_model.md
-      - store:
-        - API/constelite/models/store.md
+  - For Developers:
+    - for_developers/index.md
+    - GraphQL: for_developers/graphql.md
+    - API:
+      - constelite:
+        - models:
+          - for_developers/API/constelite/models/state_model.md
+        - store:
+          - for_developers/API/constelite/models/store.md

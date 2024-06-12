@@ -34,6 +34,10 @@ class Ref(GenericModel, Generic[M]):
         """
         return self.record.uid
 
+    @property
+    def store_uid(self):
+        return self.record.store.uid
+
     @validator('state_model_name', always=True)
     def assign_state_type(cls, v, values):
         state = values.get('state', None)

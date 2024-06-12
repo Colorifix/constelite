@@ -3,7 +3,8 @@ from typing import Optional, Union
 from pydantic.v1 import BaseModel, validator, root_validator
 
 from constelite.models import StoreModel, Ref, resolve_model
-from constelite.store.base import PropertyQuery
+from constelite.store.queries import PropertyQuery
+from constelite.graphql.utils import GraphQLQuery, GraphQLModelQuery
 
 
 def validate_state(ref: Ref) -> Ref:
@@ -66,3 +67,13 @@ class QueryRequest(BaseModel):
     model_name: str
     store: StoreModel
     include_states: Optional[bool] = False
+
+
+class GraphQLQueryRequest(BaseModel):
+    query: GraphQLQuery
+    store: StoreModel
+
+
+class GraphQLModelQueryRequest(BaseModel):
+    query: GraphQLModelQuery
+    store: StoreModel

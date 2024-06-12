@@ -14,7 +14,8 @@ from typing import (
 
 from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4
 
-from constelite.utils import all_subclasses
+from constelite.graphql.schema import GraphQLSchemaManager
+from constelite.graphql.utils import GraphQLQuery, GraphQLModelQuery
 
 from constelite.models import (
     StateModel,
@@ -65,7 +66,7 @@ class GetAllQuery(Query):
     pass
 
 
-StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
+StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY', "GRAPHQL"]
 
 
 class AsyncBaseStore(StoreModel):
@@ -73,6 +74,11 @@ class AsyncBaseStore(StoreModel):
         List[StoreMethod]] = []
 
     _guid_map: Optional[GUIDMap] = PrivateAttr(default=None)
+
+    graphql_schema_manager: Optional[GraphQLSchemaManager] = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def set_guid_map(self, guid_map: GUIDMap):
         self._guid_map = guid_map
@@ -581,3 +587,64 @@ class AsyncBaseStore(StoreModel):
         ]
 
         return refs
+
+    async def execute_graphql(self, query: GraphQLQuery) -> Dict[str, Any]:
+        """
+        Executes a GraphQL query using the GraphQL schema. Generates a set of
+        dataloaders to use in the query.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            Data in the form of a GraphQL response dictionary.
+        """
+        # Get the GraphQL schema
+        schema = self.graphql_schema_manager.get_schema()
+        # Generate a new set of data loaders for this store
+        dataloaders = self.graphql_schema_manager.get_dataloaders(self)
+        results = await schema.execute_async(
+            query.query_string,
+            context={'store': self, 'dataloaders': dataloaders}
+        )
+
+        return results.formatted
+
+    async def graphql(self, query: GraphQLQuery) -> Dict[str, Any]:
+        """
+        Runs a GraphQL query and return the data in the form of a GraphQL
+        response dictionary.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            Data in the form of a GraphQL response dictionary.
+        """
+        self._validate_method('GRAPHQL')
+        return await self.execute_graphql(query)
+
+    async def graphql_models(self, query: GraphQLModelQuery) -> List[Ref]:
+        """
+        Runs a GraphQL query and return the data in the form of a list of
+        Ref models.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            List of references to the records that match the query.
+        """
+        self._validate_method('GRAPHQL')
+        results = await self.execute_graphql(
+            query
+        )
+        if 'data' in results:
+            values = list(results['data'].values())
+            if len(values) > 1:
+                raise NotImplemented(
+                    "Not expecting multiple GraphQL queries"
+                )
+            return values[0]
+        else:
+            return results.formatted

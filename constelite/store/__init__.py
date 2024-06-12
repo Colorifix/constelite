@@ -1,6 +1,8 @@
 from constelite.store.base import (
-    Query, RefQuery, BackrefQuery,
-    BaseStore, PropertyQuery
+    BaseStore
+)
+from constelite.store.queries import (
+    Query, RefQuery, BackrefQuery, PropertyQuery
 )
 
 from constelite.store.base_async import AsyncBaseStore

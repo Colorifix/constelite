@@ -323,7 +323,7 @@ class ModelHandler(BaseModel):
 
 
 class NotionStore(AsyncBaseStore):
-    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY", "GRAPHQL"]
 
     access_token: str = Field(exclude=True)
 

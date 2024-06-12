@@ -73,4 +73,18 @@ Each store implements a set of standard methods, which are:
           show_docstring_returns: false
           show_source: false
           heading_level: 0
+### `graphql(self, query: GraphQLQuery) -> Dict[str, Any]:`
+::: constelite.store.BaseStore.graphql
+    options:
+          show_docstring_parameters: false
+          show_docstring_returns: false
+          show_source: false
+          heading_level: 0
+### `graphql_models(self, query: GraphQLModelQuery) -> List[Ref]:`
+::: constelite.store.BaseStore.graphql_models
+    options:
+          show_docstring_parameters: false
+          show_docstring_returns: false
+          show_source: false
+          heading_level: 0
 

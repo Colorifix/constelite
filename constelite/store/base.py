@@ -13,9 +13,10 @@ from typing import (
 
 from functools import partial
 
-from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4
+from pydantic.v1 import root_validator, PrivateAttr, UUID4
 
 from constelite.utils import all_subclasses, to_thread
+from constelite.store.queries import Query, BackrefQuery
 
 from constelite.models import (
     StateModel,
@@ -29,46 +30,15 @@ from constelite.models import (
     UID,
     get_auto_resolve_model
 )
+from constelite.graphql.schema import GraphQLSchemaManager
+from constelite.graphql.utils import GraphQLQuery, GraphQLModelQuery
+
 
 M = TypeVar("M")
 
 GUIDMap = ForwardRef("GUIDMap")
 
-
-class Query(BaseModel):
-    # include_static: Optional[bool] = True
-    # include_dynamic: Optional[bool] = True
-    # include_associations: Optional[bool] = False
-    # include_compositions: Optional[bool] = True
-    # include_aggregations: Optional[bool] = True
-    pass
-
-
-class RefQuery(Query):
-    ref: Ref
-
-
-class BackrefQuery(RefQuery):
-    class_name: str
-    backref_field_name: str
-
-
-class PropertyQuery(Query):
-    property_values: Dict[str, Any]
-
-    def __init__(self, **data):
-        property_values = data.pop('property_values', None)
-        if property_values is None:
-            super().__init__(property_values=data)
-        else:
-            super().__init__(property_values=property_values)
-
-
-class GetAllQuery(Query):
-    pass
-
-
-StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY']
+StoreMethod = Literal['PUT', 'PATCH', 'GET', 'DELETE', 'QUERY', "GRAPHQL"]
 
 
 class BaseStore(StoreModel):
@@ -79,6 +49,11 @@ class BaseStore(StoreModel):
         List[StoreMethod]] = []
 
     _guid_map: Optional[GUIDMap] = PrivateAttr(default=None)
+
+    graphql_schema_manager: Optional[GraphQLSchemaManager] = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def set_guid_map(self, guid_map: GUIDMap):
         self._guid_map = guid_map
@@ -605,3 +580,66 @@ class BaseStore(StoreModel):
             )
             for uid, state in uids.items()
         ]
+
+    async def execute_graphql(self, query: GraphQLQuery) -> Dict[str, Any]:
+        """
+        Executes a GraphQL query using the GraphQL schema. Generates a set of
+        dataloaders to use in the query.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            Data in the form of a GraphQL response dictionary.
+        """
+        # Get the GraphQL schema
+        schema = self.graphql_schema_manager.get_schema()
+        # Generate a new set of data loaders for this store
+        dataloaders = self.graphql_schema_manager.get_dataloaders(self)
+        results = await schema.execute_async(
+            query.query_string,
+            context={'store': self, 'dataloaders': dataloaders}
+        )
+
+        return results.formatted
+
+    async def graphql(self, query: GraphQLQuery) -> Dict[str, Any]:
+        """
+        Runs a GraphQL query and return the data in the form of a GraphQL
+        response dictionary.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            Data in the form of a GraphQL response dictionary.
+        """
+        self._validate_method('GRAPHQL')
+        return await self.execute_graphql(query)
+
+    async def graphql_models(self, query: GraphQLModelQuery) -> List[Ref]:
+        """
+        Runs a GraphQL query and return the data in the form of a list of
+        Ref models.
+
+        Args:
+            query: Query to be executed
+
+        Returns:
+            List of references to the records that match the query.
+        """
+        self._validate_method('GRAPHQL')
+        results = await self.execute_graphql(
+            query
+        )
+        if 'data' in results:
+            values = list(results['data'].values())
+            if len(values) > 1:
+                raise NotImplemented(
+                    "Not expecting multiple GraphQL queries"
+                )
+            return values[0]
+        else:
+            return results.formatted
+
+

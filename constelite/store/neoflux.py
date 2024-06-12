@@ -48,7 +48,7 @@ class NeofluxStore(BaseStore):
     Static properties and relationships are stored in Neo4j.
     Dynamic properties are stored in InfluxDB.
     """
-    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY", "GRAPHQL"]
 
     neo_config: NeoConfig = Field(exclude=True)
     influx_config: InfluxConfig = Field(exclude=True)

@@ -313,7 +313,7 @@ class NotionStore(BaseStore):
     """
     Notion store implementation.
     """
-    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY"]
+    _allowed_methods = ["PUT", "GET", "PATCH", "DELETE", "QUERY", "GRAPHQL"]
 
     access_token: str = Field(exclude=True)
 

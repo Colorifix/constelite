@@ -5,7 +5,7 @@ import asyncio
 from constelite.models import StateModel, Ref
 from constelite.api.starlite.requests import (
     PutRequest, PatchRequest, GetRequest, DeleteRequest,
-    QueryRequest
+    QueryRequest, GraphQLQueryRequest, GraphQLModelQueryRequest
 )
 
 
@@ -94,4 +94,37 @@ class StoreController(Controller):
             query=data.query,
             model_name=data.model_name,
             include_states=data.include_states
+        )
+
+    @post('/graphql', summary="GraphQL")
+    async def graphql(self, data: GraphQLQueryRequest, api: Any) -> dict:
+        """
+        Runs a GraphQL query from a string definition.
+        Returns the GraphQl results as a dictionary - no conversion to
+        Constelite models
+        """
+        store = api.get_store(data.store.uid)
+
+        if store is None:
+            raise ValueError("Store not found")
+
+        return await store.graphql(
+            query=data.query
+        )
+
+    @post('/graphql_models', summary="GraphQLModels")
+    async def graphql_models(self, data: GraphQLModelQueryRequest,
+                             api: Any) -> \
+            list[Ref]:
+        """
+        Creates a GraphQL query string from the given request.
+        Converts the results into Refs and StateModels
+        """
+        store = api.get_store(data.store.uid)
+
+        if store is None:
+            raise ValueError("Store not found")
+
+        return await store.graphql_models(
+            query=data.query
         )
