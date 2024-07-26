@@ -649,11 +649,14 @@ class NotionStore(AsyncBaseStore):
         )
 
         tasks = {}
-
+        
         async def comp_agg_write_rels_wrapper(rel):
             new_rel = await self.write_relations(rel, self.patch)
-            current_rels = getattr(current_state, field_name, [])
+            current_rels = getattr(current_state, field_name)
             
+            if current_rels is None:
+                current_rels = []
+
             for current_rel in current_rels:
                 if current_rel.uid not in [r.uid for r in new_rel]:
                     new_rel.append(current_rel)

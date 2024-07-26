@@ -84,9 +84,6 @@ class protocol:
 
 
 class Protocol(BaseModel):
-    _name: Optional[str]
-    # api: Optional[Any]
-
     @classmethod
     def get_slug(cls):
         pattern = re.compile(r'(?<!^)(?=[A-Z])')
@@ -117,7 +114,7 @@ class Protocol(BaseModel):
         wrapper.__doc__ = cls.__doc__
 
         return ProtocolModel(
-            name=getattr(cls, '_name', None) or cls.__name__,
+            name=cls.__name__,
             fn=wrapper,
             slug=cls.get_slug(),
             ret_model=ret_model,

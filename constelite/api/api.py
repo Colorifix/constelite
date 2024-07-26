@@ -1,15 +1,17 @@
 import os
 import importlib
 import inspect
+import asyncio
 
-from pydantic.v1 import UUID4
-from typing import Optional, List,  Dict, Any, Union, Callable, Type
+from typing import Callable, Optional, List, Type, Dict, Any, Union
+from pydantic.v1 import UUID4, BaseModel
 
 from constelite.models import Ref, StoreModel, StateModel
 from constelite.store import BaseStore, AsyncBaseStore
 from constelite.guid_map import GUIDMap, AsyncGUIDMap
 from constelite.loggers.base_logger import LoggerConfig, Logger
-from constelite.protocol import Protocol
+from constelite.protocol import Protocol, ProtocolModel
+from constelite.hook import HookModel
 from loguru import logger
 
 class ConsteliteAPI:
@@ -51,6 +53,7 @@ class ConsteliteAPI:
         self.version = version
         self.stores = stores
         self.protocols = []
+        self.hooks = []
         self._dependencies = dependencies
 
         self.temp_store = None
@@ -180,10 +183,47 @@ class ConsteliteAPI:
             protocol_model.path = os.path.join(
                 bind_path, module_path, protocol_model.slug
             )
+    
+    def discover_hooks(self, module_root: str, bind_path: str = "") -> None:
+        module = importlib.import_module(module_root)
+
+        if module is not None:
+            from constelite.hook import Hook
+
+            hooks = inspect.getmembers(
+                module,
+                lambda member: (
+                    inspect.isclass(member)
+                    and issubclass(member, Hook)
+                    and member != Hook
+                )
+            )
+
+            self.hooks.extend(
+                [cls.get_model() for _, cls in hooks]
+            )
 
     def run(self) -> None:
         raise NotImplementedError
 
+    async def get_hook(self, slug: str) -> HookModel:
+        hook = next(
+            (h for h in self.hooks if h.slug == slug),
+            None
+        )
+
+        return hook
+
+    async def start_hook(self, slug:str, hook_config: dict, **kwargs) -> asyncio.Task:
+        hook = self.get_hook(slug=slug)
+        if hook is None:
+            raise ValueError(f"Unknown hook with slug {slug}")
+        else:
+            return asyncio.create_task(hook.fn(api=self, hook_config=hook_config, **kwargs))
+
+    async def trigger_hook(self, ret: Any, hook_config: dict) -> None:
+        raise NotImplementedError
+    
     def get_store(self, uid: UUID4) -> StoreModel:
         """Looks up a store by its uid
         """
@@ -195,7 +235,7 @@ class ConsteliteAPI:
             None
         )
 
-    def get_protocol(self, slug: str):
+    def get_protocol(self, slug: str) -> ProtocolModel:
         protocol = next(
             (p for p in self.protocols if p.slug == slug),
             None
@@ -253,3 +293,14 @@ class ConsteliteAPI:
                     ref.state = state
 
         return state
+
+
+class ProtocolModel(BaseModel):
+    """Base class for API methods
+    """
+    path: Optional[str] = None
+    name: Optional[str] = None
+    fn: Callable
+    fn_model: Type
+    ret_model: Optional[Type] = None
+    slug: str

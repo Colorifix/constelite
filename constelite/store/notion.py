@@ -127,7 +127,7 @@ class ModelHandler(BaseModel):
         if template_id is not None:
             template_page = self.store.api.get_page(page_id=template_id)
             if page is not None:
-                breakpoint()
+
                 blocks = template_page.get_blocks()
                 block_list = list(blocks)
 

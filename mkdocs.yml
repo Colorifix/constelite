@@ -46,6 +46,7 @@ nav:
       - getting_started/user_guide/index.md
       - Calling protocols: getting_started/user_guide/calling_protocols.md
       - GraphQL queries: getting_started/user_guide/graphql.md
+      - Camunda: getting_started/user_guide/camunda.md
     - Key concepts:
       - getting_started/key_concepts/index.md
       - State Model: getting_started/key_concepts/state_model.md
@@ -53,9 +54,11 @@ nav:
       - Reference: getting_started/key_concepts/ref.md
       - Protocol: getting_started/key_concepts/protocol.md
       - API: getting_started/key_concepts/api.md
+      - Hook: getting_started/key_concepts/hook.md
   - For Developers:
     - for_developers/index.md
     - GraphQL: for_developers/graphql.md
+    - CamundaAPI: for_developers/camunda_api.md
     - API:
       - constelite:
         - models:

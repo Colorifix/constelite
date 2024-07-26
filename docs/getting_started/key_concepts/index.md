@@ -22,3 +22,7 @@ Here are some key concepts we use in Constelite:
 [API](api.md)
 
 :   An API that serves `Stores` and `Protocol` to users.
+
+[Hook](hook.md)
+
+:   An async python method that can emit a message through the API when an event happens.
