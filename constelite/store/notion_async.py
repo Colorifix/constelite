@@ -34,7 +34,8 @@ from constelite.models import (
     Relationship,
     Ref,
     StateInspector,
-    get_auto_resolve_model
+    get_auto_resolve_model,
+    resolve_model
 )
 
 from constelite.store import  Query, PropertyQuery
@@ -99,12 +100,15 @@ class ModelHandler(BaseModel):
 
     @staticmethod
     def to_notion_rel(field_value: Relationship):
-        if field_value is not None:
-            return [
-                ref.uid for ref in field_value
-            ]
-        else:
-            return None
+        try:
+            if field_value is not None:
+                return [
+                    ref.uid for ref in field_value
+                ]
+            else:
+                return None
+        except AttributeError as e:
+            raise ValueError("Relationship contains a reference without a record") from e
 
     async def to_state_rel(
         self,
@@ -236,6 +240,10 @@ class ModelHandler(BaseModel):
         for field_name, field in self.__fields__.items():
             field_type = field.type_
             constelite_name = self.get_field_constelite_name(field)
+
+            if constelite_name not in state_type.__fields__:
+                continue
+            
             if constelite_name not in props:
                 if constelite_name is not None:
                     value = getattr(self, field_name)
@@ -277,7 +285,7 @@ class ModelHandler(BaseModel):
                     constelite_name is not None
                     and state is not None
                 ):
-                    value = getattr(state, constelite_name)
+                    value = getattr(state, constelite_name, None)
                     if field_type == RelationPropertyValue:
                         value = cls.to_notion_rel(value)
                 else:
@@ -607,9 +615,7 @@ class NotionStore(AsyncBaseStore):
         state_dict = ref.state.dict()
         state_dict.update(new_rels)
 
-        new_state = inspector.model_type(
-            **state_dict
-        )
+        new_state = resolve_model(state_dict)
 
         uid = None
 
@@ -682,9 +688,7 @@ class NotionStore(AsyncBaseStore):
         state_dict = ref.state.dict()
         state_dict.update(new_rels)
 
-        new_state = inspector.model_type(
-            **state_dict
-        )
+        new_state = resolve_model(state_dict)
 
         await self.update_page_from_state(
             state=new_state,

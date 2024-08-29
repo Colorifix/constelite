@@ -7,6 +7,7 @@ from pydantic.v1 import UUID4, validator, validate_arguments
 from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel, StoreModel
 
+
 M = TypeVar('StateModel')
 
 
@@ -32,7 +33,10 @@ class Ref(GenericModel, Generic[M]):
         """
         Unique identifier of the record.
         """
-        return self.record.uid
+        if self.record:
+            return self.record.uid
+        else:
+            raise AttributeError("Can't get uid from reference without a  record")
 
     @property
     def store_uid(self):
@@ -42,6 +46,16 @@ class Ref(GenericModel, Generic[M]):
     def assign_state_type(cls, v, values):
         state = values.get('state', None)
         if v is not None:
+            if (
+                cls.__fields__['state'].type_ != Any
+            ):
+                from constelite.models.resolve import get_auto_resolve_model
+                resolved_cls = get_auto_resolve_model(v)
+                if resolved_cls is None:
+                    raise ValueError(f"Unknown state model name '{v}'")
+                if not issubclass(resolved_cls, cls.__fields__['state'].type_):
+                    raise ValueError(f"State model mismatch: expected {cls.__fields__['state'].type_.__name__}, got {resolved_cls.__name__}")
+
             return v
         if cls.__fields__['state'].type_ != Any:
             return cls.__fields__['state'].type_.__name__

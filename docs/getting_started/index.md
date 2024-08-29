@@ -20,8 +20,7 @@ For development and tests, you can start a local instance of constelite:
 
 $ cd constelite
 $ poetry install
-$ cd colorifix_alpha
-$ CONSTELITE_CONFIG=/Volumes/DockerShare/constelite_staging.conf poetry run python api.py
+$ poetry run constelite --config /Volumes/DockerShare/constelite_staging_config.json starlite start
 ```
 
 !!! info

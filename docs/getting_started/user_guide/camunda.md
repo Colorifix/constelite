@@ -1,4 +1,4 @@
-# Camunda
+# Working with Camunda API
 
 ## Importing templates
 
@@ -74,7 +74,7 @@ If you want to run protocols and hooks in deployed environments, use `$PROJECT_N
 
 * Now you can pass parameters to the service task in the Input section and set the name of the return variable where the result of the service task will be store.
 
-## Staring hooks from Camunda
+## Starting hooks from Camunda
 
 Working with hooks requires two artifacts in the diagram. First, you need a service task to start the hook. Then, you need an intermediate catch event to receive callbacks from the hook.
 

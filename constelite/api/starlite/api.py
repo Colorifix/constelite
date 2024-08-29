@@ -1,8 +1,6 @@
 import os
 
-from typing import Literal, Optional
-
-from pydantic.v1 import Field
+from typing import Literal
 
 from litestar.static_files import create_static_files_router
 from litestar.config.cors import CORSConfig

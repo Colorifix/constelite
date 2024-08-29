@@ -122,7 +122,7 @@ class StarliteClientEndpoint:
                 return resolve_return_value(data=data)
         elif ret.status_code == 500 or ret.status_code == 400:
             data = ret.json()
-            logger.error(data.get('extra', None))
+            logger.error(data)
             raise SystemError(data['detail'])
         elif ret.status_code == 404:
             logger.error(f"URL {self.url} is not found")

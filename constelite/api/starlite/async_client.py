@@ -1,4 +1,4 @@
-from typing import Any, List, Union
+from typing import Any, List, Union, Optional
 import asyncio
 import aiohttp
 import os
@@ -88,7 +88,13 @@ class StarliteClientEndpoint:
         """
         obj = RequestModel(**kwargs)
         async with aiohttp.ClientSession() as session:
-            async with session.post(self.url, data=obj.json()) as ret:
+            async with session.post(
+                self.url,
+                data=obj.json(),
+                headers={
+                    "Authorization": f"Bearer {self.client.token}"
+                },
+            ) as ret:
                 if ret.status == 201:
                     if ret.text != '':
                         data = await ret.json()
@@ -149,9 +155,10 @@ class StarliteClient:
     Arguments:
         url: URL of the Starlite API.
     """
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str, token: Optional[str] = None) -> None:
         self.url = url
-    
+        self.token = token or os.environ.get('CONSTELITE_TOKEN', None)
+
     @property
     def protocols(self) -> StarliteClientEndpoint:
         return ProtocolsEndpoint(
@@ -168,7 +175,7 @@ class StarliteClient:
             is_root=True
         )
 
-    def __get_attr__(self, key) -> "StarliteClient":
+    def __getattr__(self, key) -> "StarliteClient":
         return StarliteClientEndpoint(
             client=self,
             endpoint=key,

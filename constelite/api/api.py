@@ -254,7 +254,7 @@ class ConsteliteAPI:
     def get_dependency(self, key):
         return self._dependencies.get(key, None)
 
-    async def get_state(self, ref: Ref, cache: bool = True) -> StateModel:
+    async def get_state(self, ref: Ref, cache: bool = True, refresh=True) -> StateModel:
         """Retrieves a state of a reference from store
 
         Args:
@@ -268,7 +268,7 @@ class ConsteliteAPI:
             ValueError:
                 If reference store is not known
         """
-        if ref.state is not None:
+        if ref.state is not None and not refresh:
             state = ref.state
         else:
             if ref.record is not None:

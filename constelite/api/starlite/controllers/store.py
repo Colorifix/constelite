@@ -1,6 +1,5 @@
 from typing import Any
 from litestar import Controller, post
-import asyncio
 
 from constelite.models import StateModel, Ref
 from constelite.api.starlite.requests import (

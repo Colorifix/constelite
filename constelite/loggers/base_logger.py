@@ -28,6 +28,8 @@ class Logger:
         """
         logger.log(level, message)
 
+    async def error(self, message: Any):
+        await self.log(message, level='ERROR')
 
 class LoggerConfig(BaseModel):
     logger_name: str

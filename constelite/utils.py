@@ -3,7 +3,7 @@ import re
 from typing import Type, Literal, Union
 from typing import get_origin, get_args
 from typing_extensions import Annotated
-
+from loguru import logger
 
 def resolve_forward_ref(forward_ref, root_cls):
     return next(
@@ -47,10 +47,23 @@ def to_thread(fn):
 
 async def async_map(fn, iterable):
     tasks = []
-    async with asyncio.TaskGroup() as tg:
-        for item in iterable:
-            tasks.append(
-                tg.create_task(fn(item))
-            )
-    
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for item in iterable:
+                tasks.append(
+                    tg.create_task(fn(item))
+                )
+    except Exception as e:
+        for ex in e.exceptions:
+            logger.error(ex)
+        raise e
+
+    for task in tasks:
+        if task.cancelled():
+            logger.warning(f"Task {task.get_coro().__name__} was cancelled")
+            raise asyncio.CancelledError()
+        if task.exception() is not None:
+            logger.error(f"Task {task.get_coro().__name__} raised an exception: {task.exception()}")
+            raise task.exception()
+
     return [task.result() for task in tasks]

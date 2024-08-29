@@ -1,5 +1,4 @@
 from functools import wraps
-import inspect
 
 from constelite.models import StateModel, Ref
 from constelite.protocol import ProtocolModel
