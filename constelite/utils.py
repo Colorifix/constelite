@@ -67,3 +67,22 @@ async def async_map(fn, iterable):
             raise task.exception()
 
     return [task.result() for task in tasks]
+
+
+def get_field_extra(field, key_name):
+    """
+    Get a value from a Pydantic field json schema extra dict
+    Args:
+        field:
+        key_name:
+
+    Returns:
+
+    """
+    extra_info = field.field_info.extra
+    key_value = None
+    if 'json_schema_extra' in extra_info:
+        key_value = extra_info[
+            'json_schema_extra'
+        ].get(key_name, None)
+    return key_value
