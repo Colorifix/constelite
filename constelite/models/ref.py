@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Generic, TypeVar, Optional, Any, Union, Type, Self
 from copy import deepcopy
 
@@ -8,10 +10,9 @@ from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel, StoreModel
 
 
-M = TypeVar('StateModel')
+StateModelType = TypeVar('StateModelType')
 
-
-class Ref(GenericModel, Generic[M]):
+class Ref(GenericModel, Generic[StateModelType]):
     """
     Reference to a record in the store.
 
@@ -24,7 +25,7 @@ class Ref(GenericModel, Generic[M]):
     model_name = 'Ref'
     record: Optional[StoreRecordModel]
     guid: Optional[UUID4]
-    state: Optional[M]
+    state: Optional[StateModelType]
 
     state_model_name: Optional[str]
 
@@ -68,7 +69,7 @@ class Ref(GenericModel, Generic[M]):
             else:
                 return 'Any'
 
-    def strip(self) -> Self:
+    def strip(self) -> Ref[StateModelType]:
         """
         Strips state from the reference.
         

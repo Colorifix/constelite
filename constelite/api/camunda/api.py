@@ -22,7 +22,8 @@ from .template_generator import generate_template
 
 from .defs import (
     CONSTELITE_ENV_EVN_VARIABLE,
-    RESPONSE_FIELD 
+    RESPONSE_FIELD ,
+    HOOK_CALL_RESPONSE_FIELD
 )
 
 Model = Union[ProtocolModel, HookModel]
@@ -42,8 +43,6 @@ class CamundaAPI(ConsteliteAPI):
     """
     def __init__(self, config: ConnectionConfig, **kwargs):
         super().__init__(**kwargs)
-        self._outbound_connectors = []
-        self._inbound_connectors = []
         self.config = config
         self.runtime = CamundaRuntime(
             config=self.config,
@@ -66,9 +65,10 @@ class CamundaAPI(ConsteliteAPI):
             self.register_hook(hook_model=hook_model)
 
         loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.start_persistent_hooks())
         loop.run_until_complete(self.runtime._worker.work())
 
-    async def trigger_hook(self, ret: Any, hook_config: CamundaHookConfig) -> None:
+    async def trigger_hook(self, ret: Any, hook_config: CamundaHookConfig | dict) -> None:
         """
         Sends a zeebe message to the Camunda server.
 
@@ -76,6 +76,9 @@ class CamundaAPI(ConsteliteAPI):
             ret: Payload of the message.
             hook_config: Hook config.
         """
+        if isinstance(hook_config, dict):
+            hook_config = CamundaHookConfig(**hook_config)
+
         if self.runtime is None:
             raise Exception("Can't trigger a hook. Runtime is not started")
         
@@ -101,17 +104,16 @@ class CamundaAPI(ConsteliteAPI):
         env_tag = os.environ.get(CONSTELITE_ENV_EVN_VARIABLE, gethostname())
         return f"{env_tag}-{protocol_model.slug}"
     
-    def register_protocol(self, protocol_model: Type[ProtocolModel]) -> None:
+    def register_protocol(self, protocol_model: ProtocolModel) -> None:
         async def task(job: Job, **kwargs):
             kwargs = {
                 field_name:kwargs.get(field_name, None)
                 for field_name in protocol_model.fn_model.__fields__
             }
-            kwargs["api"] = self
             kwargs["logger"] = await self.get_logger(kwargs.get("logger", None))
 
             try:
-                ret = await protocol_model.fn(**kwargs)
+                ret = await self.run_protocol(protocol_model.slug, **kwargs)
             except ValidationError as e:
                 logger.exception(
                     "Failed to validate arguments for " f"{protocol_model.name}"
@@ -130,7 +132,7 @@ class CamundaAPI(ConsteliteAPI):
             after=[]
         )(task)
     
-    def register_hook(self, hook_model: Type[HookModel]) -> None:
+    def register_hook(self, hook_model: HookModel) -> None:
         async def task(
                 job: Job,
                 correlation_key: str,
@@ -141,16 +143,16 @@ class CamundaAPI(ConsteliteAPI):
                 field_name:kwargs.get(field_name, None)
                 for field_name in hook_model.fn_model.__fields__
             }
-            kwargs['api'] = self
-            kwargs['logger'] = await self.get_logger(kwargs.get("logger", None))
-            
-            kwargs['hook_config'] = CamundaHookConfig(
+
+            hook_config = CamundaHookConfig(
                 correlation_key=correlation_key,
                 message_name=message_name
             )
+            
+            hook_call_hash = await self.start_hook(slug=hook_model.slug, hook_config=hook_config, **kwargs)
 
-            asyncio.create_task(hook_model.fn(**kwargs))
-        
+            return {HOOK_CALL_RESPONSE_FIELD: str(hook_call_hash)}
+
         self.runtime._worker.task(
             task_type=self.generate_task_type(hook_model),
             timeout_ms=self.hook_timeout,

@@ -9,7 +9,8 @@ from constelite.hook import HookModel
 
 from .defs import (
     CONSTELITE_ENV_TEMPLATE_VARIABLE,
-    RESPONSE_FIELD 
+    RESPONSE_FIELD,
+    HOOK_CALL_RESPONSE_FIELD
 )
 
 class Binding(BaseModel):
@@ -17,7 +18,7 @@ class Binding(BaseModel):
     name: Optional[str] = None
     source: Optional[str] = None
     key: Optional[str] = None
-    property: Optional[Literal["type", "retries"]]
+    property: Optional[Literal["type", "retries"]] = None
 
 
 class CamundaProperty(BaseModel):
@@ -112,7 +113,6 @@ def generate_output_prop(model: Union[ProtocolModel, HookModel]) -> Optional[Cam
         )
         return prop
 
-
 def generate_template(model: Union[ProtocolModel, HookModel]) -> CamundaTemplate:
     props = generate_input_props(model)
 
@@ -124,6 +124,15 @@ def generate_template(model: Union[ProtocolModel, HookModel]) -> CamundaTemplate
             props.append(output_prop)
     else:
         props.extend(generate_inbound_config_props(model))
+
+        output_prop = CamundaProperty(
+            label="Result variable",
+            binding=Binding(type="zeebe:output", source=f"={HOOK_CALL_RESPONSE_FIELD}"),
+            type="String",
+            group="output",
+        )
+
+        props.append(output_prop)
     
     task_type_prop = CamundaProperty(
         value=f'= {CONSTELITE_ENV_TEMPLATE_VARIABLE}+ "-{model.slug}"',
