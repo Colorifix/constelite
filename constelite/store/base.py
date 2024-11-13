@@ -13,7 +13,7 @@ from typing import (
 
 from functools import partial
 
-from pydantic.v1 import root_validator, PrivateAttr, UUID4
+from pydantic.v1 import root_validator, PrivateAttr, UUID4, AnyUrl
 
 from constelite.utils import all_subclasses, to_thread
 from constelite.store.queries import Query, BackrefQuery
@@ -178,7 +178,8 @@ class BaseStore(StoreModel):
         uid: UID,
         state_model_name: Optional[str] = None,
         state: Optional[StateModel] = None,
-        guid: Optional[UUID4] = None
+        guid: Optional[UUID4] = None,
+        url: Optional[AnyUrl] = None
     ):
         if guid is None:
             guid = self.get_guid_record(
@@ -193,7 +194,8 @@ class BaseStore(StoreModel):
         return Ref(
             record=StoreRecordModel(
                 store=self.dict(),
-                uid=uid
+                uid=uid,
+                url=url
             ),
             state=state,
             state_model_name=state_model_name,

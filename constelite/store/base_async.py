@@ -12,7 +12,7 @@ from typing import (
     ForwardRef
 )
 
-from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4
+from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4, AnyUrl
 
 from constelite.graphql.schema import GraphQLSchemaManager
 from constelite.graphql.utils import GraphQLQuery, GraphQLModelQuery
@@ -203,7 +203,8 @@ class AsyncBaseStore(StoreModel):
         uid: UID,
         state_model_name: Optional[str] = None,
         state: Optional[StateModel] = None,
-        guid: Optional[UUID4] = None
+        guid: Optional[UUID4] = None,
+        url: Optional[AnyUrl] = None
     ):
 
         if guid is None:
@@ -219,7 +220,8 @@ class AsyncBaseStore(StoreModel):
         return Ref(
             record=StoreRecordModel(
                 store=self.dict(),
-                uid=uid
+                uid=uid,
+                url=url
             ),
             state=state,
             state_model_name=state_model_name,

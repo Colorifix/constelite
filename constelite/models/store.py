@@ -1,6 +1,6 @@
 from typing import Optional
 from constelite.models.auto_resolve import AutoResolveBaseModel
-from pydantic.v1 import UUID4, BaseModel
+from pydantic.v1 import UUID4, BaseModel, AnyUrl
 
 UID = str
 
@@ -13,3 +13,4 @@ class StoreModel(BaseModel):
 class StoreRecordModel(BaseModel):
     store: StoreModel
     uid: UID
+    url: Optional[AnyUrl] = None

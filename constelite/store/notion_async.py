@@ -3,8 +3,9 @@ from typing import Type, Dict, Optional, List, ClassVar, ForwardRef
 
 from uuid import UUID
 
-from pydantic.v1 import BaseModel, Field
+from pydantic.v1 import BaseModel, Field, AnyUrl
 import more_itertools
+from urllib.parse import urljoin
 
 from python_notion_api.async_api import AsyncNotionAPI, NotionDatabase, NotionPage
 from python_notion_api.async_api.iterators import AsyncPropertyItemIterator
@@ -22,6 +23,7 @@ from python_notion_api.models.values import (
     RollupPropertyValue,
     StatusPropertyValue,
 )
+from constelite.utils import EntryDeletedException
 
 
 
@@ -202,12 +204,18 @@ class ModelHandler(BaseModel):
                     init=init_value
                 )
         return property_value
+
     @classmethod
-    async def from_page(cls, uid: UID) -> "ModelHandler":
+    async def from_page_id(cls, uid: UID) -> "ModelHandler":
         page = NotionPage(api=cls.store.api, page_id=uid)
         
         await page.reload()
-        
+        if not page.is_alive:
+            raise EntryDeletedException("Notion page is deleted")
+        return await cls.from_page(page)
+
+    @classmethod
+    async def from_page(cls, page: NotionPage) -> "ModelHandler":
         tasks = {}
         async with asyncio.TaskGroup() as tg:
             for field_name in cls.__fields__:
@@ -337,6 +345,7 @@ class NotionStore(AsyncBaseStore):
 
     model_handlers: Optional[Dict[Type[StateModel], Type[ModelHandler]]] = {}
     api: Optional[AsyncNotionAPI] = Field(exclude=True)
+    base_url: Optional[str]
 
     class Config:
         arbitrary_types_allowed = True
@@ -421,7 +430,7 @@ class NotionStore(AsyncBaseStore):
     ) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
-        handler = await handler_cls.from_page(uid=uid)
+        handler = await handler_cls.from_page_id(uid=uid)
 
         state = handler.to_state(model_type=model_type)
 
@@ -449,7 +458,7 @@ class NotionStore(AsyncBaseStore):
 
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
-        handler = await handler_cls.from_page(uid=from_uid)
+        handler = await handler_cls.from_page_id(uid=from_uid)
 
         state = await handler.to_state(model_type=from_model_type)
 
@@ -479,7 +488,7 @@ class NotionStore(AsyncBaseStore):
             inspector: RelInspector) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
-        handler = await handler_cls.from_page(uid=from_uid)
+        handler = await handler_cls.from_page_id(uid=from_uid)
 
         state = handler.to_state(model_type=from_model_type)
 
@@ -505,7 +514,7 @@ class NotionStore(AsyncBaseStore):
     ) -> StateModel:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
-        handler = await handler_cls.from_page(uid=uid)
+        handler = await handler_cls.from_page_id(uid=uid)
 
         return await handler.to_state(model_type=model_type)
 
@@ -537,7 +546,7 @@ class NotionStore(AsyncBaseStore):
             tasks = {}
 
             async def get_state_wrapper(page_id):
-                handler = await handler_cls.from_page(uid=page_id)
+                handler = await handler_cls.from_page_id(uid=page_id)
                 return await handler.to_state(model_type=model_type)
 
             async with asyncio.TaskGroup() as tg:
@@ -738,3 +747,7 @@ class NotionStore(AsyncBaseStore):
             uid=ref.uid,
             model_type=model_type
         )
+
+    def get_url(self, ref) -> str:
+        if self.base_url is not None:
+            return urljoin(self.base_url, ref.uid)

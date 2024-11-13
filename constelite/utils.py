@@ -1,9 +1,12 @@
 import asyncio
+import datetime
 import re
 from typing import Type, Literal, Union
 from typing import get_origin, get_args
 from typing_extensions import Annotated
 from loguru import logger
+from python_notion_api import DateObject
+
 
 def resolve_forward_ref(forward_ref, root_cls):
     return next(
@@ -86,3 +89,39 @@ def get_field_extra(field, key_name):
             'json_schema_extra'
         ].get(key_name, None)
     return key_value
+
+
+def validate_datetime_property_start(value: Union[datetime.datetime,
+                                                  DateObject]) \
+        -> datetime.datetime:
+    """
+    Validate a datetimem property of a model.
+    When getting datetime from Notion, it is returned as a DateObject, which
+    has multiple properties. Usually we will want the 'start'.
+    Args:
+        value:
+
+    Returns:
+
+    """
+
+    if isinstance(value, DateObject):
+        return value.start
+    return value
+
+
+class EntryDeletedException(Exception): pass
+
+
+def get_exception_string(err: Union[Exception, ExceptionGroup]) -> str:
+    """
+    Helps get the error message from a task group
+    Args:
+        err:
+
+    Returns:
+
+    """
+    if isinstance(err, ExceptionGroup):
+        return repr([get_exception_string(e) for e in err.exceptions])
+    return repr(err)

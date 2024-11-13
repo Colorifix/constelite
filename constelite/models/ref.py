@@ -4,7 +4,7 @@ from typing import Generic, TypeVar, Optional, Any, Union, Type, Self
 from copy import deepcopy
 
 from pydantic.v1.generics import GenericModel
-from pydantic.v1 import UUID4, validator, validate_arguments
+from pydantic.v1 import UUID4, validator, validate_arguments, AnyUrl
 
 from constelite.models.model import StateModel
 from constelite.models.store import StoreRecordModel, StoreModel
@@ -132,7 +132,8 @@ def ref(
         model: Union[StateModel, Ref, Type[StateModel]],
         uid: Optional[str] = None,
         store: Optional[StoreModel] = None,
-        guid: Optional[UUID4] = None
+        guid: Optional[UUID4] = None,
+        url: Optional[AnyUrl] = None
 ) -> Self:
     """
     Generates a reference from either state, reference of state model type.
@@ -142,6 +143,7 @@ def ref(
         uid: Unique identifier of the record.
         store: Store to which the record belongs.
         guid: Global identifier of the entity that the record belongs to. Currently not used.
+        url: Web URL for accessing the entity outside of Constelite.
     
     Returns:
         A reference to the record.
@@ -158,7 +160,8 @@ def ref(
     if uid is not None and store is not None:
         record = StoreRecordModel(
             uid=uid,
-            store=store
+            store=store,
+            url=url
         )
     else:
         record = None

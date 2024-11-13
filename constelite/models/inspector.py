@@ -12,11 +12,12 @@ from constelite.models.relationships import (
 )
 from constelite.models.dynamic import Dynamic
 from loguru import logger
+from datetime import datetime
 
 
 
 StaticTypes = Union[
-    StrictStr, StrictInt, StrictBool, StrictFloat, str,
+    StrictStr, StrictInt, StrictBool, StrictFloat, str, datetime,
     List[Union[StrictStr, StrictInt, StrictBool, StrictFloat, str]],
     Set[Union[StrictStr, StrictInt, StrictBool, StrictFloat, str]],
     BaseModel
