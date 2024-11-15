@@ -1,22 +1,33 @@
-from typing import Optional, Type, Callable, Any
+import typing
+from typing import  Callable, Any, TYPE_CHECKING
+import abc
 import asyncio
 import inspect
 import re
 
-from pydantic.v1 import BaseModel, validate_arguments, create_model
+from pydantic.v1 import BaseModel, create_model
 
-from constelite.loggers import Logger, LoggerConfig
+from constelite.loggers import Logger
+
+if TYPE_CHECKING:
+    from constelite.api.api import ConsteliteAPI
+
 
 class ProtocolModel(BaseModel):
     """Base class for API methods
     """
-    path: Optional[str]
-    name: Optional[str]
+    path: str | None = None
+    name: str | None = None
     fn: Callable
-    fn_model: Type
-    ret_model: Optional[Type]
+    fn_model: type[BaseModel]
+    ret_model: type[Any] | None
     slug: str
 
+class ProtocolProtocol(typing.Protocol):
+    def get_model(self) -> ProtocolModel: ...
+
+class CallableProtocol(ProtocolProtocol):
+    def __call__(self, api: 'ConsteliteAPI', logger: Logger, **kwargs) -> Any:...
 
 class protocol:
     """Decorator for protocols
@@ -43,23 +54,18 @@ class protocol:
         return create_model(fn.__name__, **fields)
 
     def wrap_fn(self, fn):
-        async def wrapper(api, logger: Optional[Logger] = None, **kwargs):
-            kwargs['api'] = api
-
-            if "logger" in inspect.signature(fn).parameters:
-                kwargs['logger'] = logger
-            
+        async def wrapper(api, logger: Logger, **kwargs):
             if inspect.iscoroutinefunction(fn):
-                return await fn(**kwargs)
+                return await fn(api=api, logger=logger, **kwargs)
             else:
-                return await asyncio.to_thread(fn, **kwargs)
+                return await asyncio.to_thread(fn, api=api, logger=logger, **kwargs)
         
         wrapper.__name__ = fn.__name__
         wrapper.__module__ = fn.__module__
         wrapper.__doc__ = fn.__doc__
 
         return wrapper
-    def __call__(self, fn):
+    def __call__(self, fn) -> CallableProtocol:
         fn_name = fn.__name__
 
         if 'return' not in fn.__annotations__:
@@ -71,7 +77,7 @@ class protocol:
 
         model = self._generate_model(fn)
 
-        fn._protocol_model = ProtocolModel(
+        fn.get_model = lambda: ProtocolModel(
             name=self.name,
             fn=self.wrap_fn(fn),
             slug=fn.__name__,
@@ -89,24 +95,19 @@ class Protocol(BaseModel):
         pattern = re.compile(r'(?<!^)(?=[A-Z])')
         name = pattern.sub('_', cls.__name__).lower()
         return name
+    
+    @abc.abstractmethod
+    async def run(self, api: 'ConsteliteAPI', logger: Logger) -> Any:
+        raise NotImplementedError("Subclasses must implement this method")
 
     @classmethod
     def get_model(cls):
         ret_model = cls.run.__annotations__.get('return', None)
 
-        async def wrapper(api, logger: Optional[Logger] = None, **kwargs):
+        async def wrapper(api, logger: Logger, **kwargs):
             protocol = cls(**kwargs)
-
-            run_kwargs = {"api": api}
-
-            if "logger" in inspect.signature(protocol.run).parameters:
-                run_kwargs['logger'] = logger
-
-            if inspect.iscoroutinefunction(protocol.run):
-                return await protocol.run(**run_kwargs)
-            else:
-                return await asyncio.to_thread(protocol.run, **run_kwargs)
-
+            return await protocol.run(api=api, logger=logger)
+            
         slug = cls.get_slug()
 
         wrapper.__name__ = slug

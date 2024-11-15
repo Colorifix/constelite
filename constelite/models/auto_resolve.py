@@ -2,7 +2,7 @@ from typing import Optional, Type
 from pydantic.v1 import BaseModel, root_validator, Extra
 
 class AutoResolveBaseModel(BaseModel, extra=Extra.allow):
-    model_name: Optional[str]
+    model_name: Optional[str] = None
 
     @root_validator()
     def assign_model(cls, values):

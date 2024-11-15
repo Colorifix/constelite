@@ -1,21 +1,24 @@
+from typing import Any, Callable, List, TYPE_CHECKING
+import traceback
 import json
-from typing import Any, Callable, List, Type, Coroutine
-
-from pydantic.v1 import BaseModel
-
 
 from litestar import Router, post
-from litestar.handlers import BaseRouteHandler
+from litestar.handlers import HTTPRouteHandler
+from litestar.exceptions import HTTPException
 
 from constelite.protocol import ProtocolModel
 from constelite.models import resolve_model
 
-from .models import ProtocolRequest
+from constelite.api.starlite.controllers.models import ProtocolRequest
+
+if TYPE_CHECKING:
+    from constelite.api.starlite.api import StarliteAPI
 
 def generate_route(
-        data_cls: Type[BaseModel],
-        ret_cls: Type[BaseModel],
-        fn: Coroutine
+        # data_cls: Type[BaseModel],
+        # ret_cls: Type[BaseModel] | None,
+        protocol_model: ProtocolModel,
+        fn: Callable
     ) -> Callable:
     """Generates a starlite route function.
 
@@ -27,10 +30,10 @@ def generate_route(
     Returns:
         A litestar route function with the given typehint.
     """
-    async def endpoint(data: ProtocolRequest[data_cls], api: Any) -> ret_cls:
-        args = resolve_model(
+    async def endpoint(data: ProtocolRequest[protocol_model.fn_model], api: Any) -> protocol_model.ret_model:
+        args: protocol_model.fn_model = resolve_model(
             values=json.loads(data.args.json()),
-            model_type = data.args.__class__
+            model_type = protocol_model.fn_model
         )
 
         kwargs = {
@@ -39,8 +42,17 @@ def generate_route(
         }
 
         logger = await api.get_logger(data.logger)
-        
-        return await fn(api, logger, **kwargs)
+        try:
+            return await fn(api, logger, **kwargs)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail="Internal Server Error",
+                extra={
+                    "error_message": f"Runtime error while running {protocol_model.name}: {repr(e)}",
+                    "traceback": traceback.format_exc()
+                }
+            )
 
     # functools.wraps removes __annotations__ from endpoint
     endpoint.__name__ = fn.__name__
@@ -51,11 +63,11 @@ def generate_route(
 
 
 def generate_protocol_router(
-        api: "StarliteAPI",
+        api: 'StarliteAPI',
         path: str,
         fn_wrapper: Callable[[ProtocolModel], Callable],
         tags: List[str] = [],
-        extra_route_handlers: List[BaseRouteHandler] = []
+        extra_route_handlers: List[HTTPRouteHandler] = []
 ) -> Router:
     """
     Generates a litestar router that serves all api protocols as endpoints.
@@ -74,12 +86,18 @@ def generate_protocol_router(
 
     for protocol_model in api.protocols:
 
-        protocol_tags = []
-        path_parts = protocol_model.path.split('/')
-        if len(path_parts) > 1:
-            protocol_tags.extend(path_parts[:-1])
+        protocol_tags: list[str] = []
+        if protocol_model.path:
+            path_parts = protocol_model.path.split('/')
+            if len(path_parts) > 1:
+                protocol_tags.extend(path_parts[:-1])
 
-        endpoint = fn_wrapper(protocol_model)
+        endpoint_fn = fn_wrapper(protocol_model)
+        
+        endpoint = generate_route(
+            protocol_model=protocol_model,
+            fn=endpoint_fn
+        )
 
         handlers.append(
             post(

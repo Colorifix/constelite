@@ -1,5 +1,3 @@
-from functools import wraps
-
 from constelite.models import StateModel, Ref
 from constelite.protocol import ProtocolModel
 from constelite.api.starlite.controllers.generator import (
@@ -8,10 +6,10 @@ from constelite.api.starlite.controllers.generator import (
 )
 
 def direct_call_wrapper(protocol_model: ProtocolModel):
-    @wraps(protocol_model.fn)
     async def wrapper(api, logger, **kwargs):
-        ret = await protocol_model.fn(api, logger, **kwargs)
-
+        
+        ret = await api.run_protocol(protocol_model.slug, logger,  **kwargs)
+        
         if isinstance(ret, StateModel):
             temp_store = getattr(api, 'temp_store', None)
 
@@ -26,11 +24,7 @@ def direct_call_wrapper(protocol_model: ProtocolModel):
 
         return ret
 
-    return generate_route(
-        data_cls=protocol_model.fn_model,
-        ret_cls=protocol_model.ret_model,
-        fn=wrapper
-    )
+    return wrapper
 
 
 def threaded_protocol_router(api):

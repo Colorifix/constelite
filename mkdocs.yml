@@ -60,6 +60,7 @@ nav:
     - for_developers/index.md
     - GraphQL: for_developers/graphql.md
     - CamundaAPI: for_developers/camunda_api.md
+    - Error Logging: for_developers/error_logging.md
     - API:
       - constelite:
         - models:

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional, Type, TypeVar
 
 from constelite.utils import all_subclasses
 from constelite.models import AutoResolveBaseModel, Ref, FlexibleModel
@@ -16,11 +16,14 @@ def get_auto_resolve_model(model_name: str, root_cls=AutoResolveBaseModel):
     return model_type
 
 
+ModelType = TypeVar('ModelType')
+
+
 def resolve_model(
         values: Dict[str, Any],
         force: bool = False,
-        model_type: Optional[Type['AutoResolveBaseModel']] = None
-) -> 'AutoResolveBaseModel':
+        model_type: Optional[Type[ModelType]] = None
+) -> ModelType:
     """Resolve model class.
 
     Infers model class name from the `model` key in passed values

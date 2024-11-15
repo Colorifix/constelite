@@ -122,7 +122,20 @@ class StarliteClientEndpoint:
                 return resolve_return_value(data=data)
         elif ret.status_code == 500 or ret.status_code == 400:
             data = ret.json()
-            logger.error(data)
+            
+            log_message = f"Request failed with status code {ret.status_code}"
+
+            if (
+                (extra:=data.get('extra', None)) is not None
+                and (error_message:=extra.get('error_message', None)) is not None
+            ):
+                log_message += f"\nError: {error_message}"
+
+            logger.error(log_message)
+
+            if extra and (traceback:=extra.get('traceback', None)) is not None:
+                logger.debug(f"Traceback:\n{traceback}")
+
             raise SystemError(data['detail'])
         elif ret.status_code == 404:
             logger.error(f"URL {self.url} is not found")
@@ -131,6 +144,7 @@ class StarliteClientEndpoint:
             logger.error(
                 f"Failed to receive a response. {ret.status_code}: {ret.text}"
             )
+            raise SystemError("Failed to receive a response")
     def __call__(self, wait_for_response=True, **kwargs) -> Any:
         return self._call(wait_for_response=wait_for_response, **kwargs)
 

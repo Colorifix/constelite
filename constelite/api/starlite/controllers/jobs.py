@@ -1,6 +1,8 @@
 from typing import Any
 import asyncio
 
+from pydantic.v1 import  UUID4
+
 from pydantic.v1 import BaseModel
 
 from litestar import post
@@ -11,11 +13,10 @@ from constelite.protocol import ProtocolModel
 
 from constelite.api.starlite.controllers.models import Job, JobStatus
 from constelite.api.starlite.controllers.generator import (
-    generate_protocol_router,
-    generate_route
+    generate_protocol_router
 )
 
-tasks = {}
+tasks: dict[UUID4, asyncio.Task] = {}
 
 class JobRequest(BaseModel):
     job: Job
@@ -43,7 +44,7 @@ async def get_job(data: JobRequest) -> Job:
             job.result = None
         except Exception as e:
             job.status = JobStatus.failed
-            job.error = str(e)
+            job.error = repr(e)
 
     else:
         raise ValueError(f"Job {job.uid} does not exist'")
@@ -58,7 +59,8 @@ def task_wrapper(protocol_model: ProtocolModel):
     @wraps(protocol_model.fn)
     async def wrapper(api: Any, logger, **kwargs) -> Job:
         task = asyncio.create_task(
-            protocol_model.fn(api, logger, **kwargs)
+            api.run_protocol(protocol_model.slug, logger, **kwargs)
+            # protocol_model.fn(api, logger, **kwargs)
         )
 
         job = Job(status=JobStatus.submitted)
@@ -67,11 +69,7 @@ def task_wrapper(protocol_model: ProtocolModel):
 
         return job
 
-    return generate_route(
-        data_cls=protocol_model.fn_model,
-        ret_cls=Job,
-        fn=wrapper
-    )
+    return wrapper
 
 
 def task_protocol_router(api):

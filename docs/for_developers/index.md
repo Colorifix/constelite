@@ -10,3 +10,7 @@ Here are some guides to developing Constelite:
 [CamundaAPI](camunda_api.md)
 
 :   A brief into to how CamundaAPI works
+
+[Error Logging](error_logging.md)
+
+:   Error logging in Constelite

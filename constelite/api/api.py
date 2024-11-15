@@ -3,19 +3,17 @@ import importlib
 import inspect
 import asyncio
 
-from uuid import uuid4, UUID
-
 from typing import Callable, Optional, List, Type, Dict, Any, Union
 from pydantic.v1 import UUID4, BaseModel
 
-from tinydb import TinyDB, Query
-
-from constelite.models import Ref, StoreModel, StateModel
+from constelite.models import Ref,  StateModel
 from constelite.store import BaseStore, AsyncBaseStore
 from constelite.guid_map import GUIDMap, AsyncGUIDMap
 from constelite.loggers.base_logger import LoggerConfig, Logger
-from constelite.protocol import Protocol, ProtocolModel
+from constelite.protocol import Protocol, ProtocolModel, CallableProtocol, ProtocolProtocol
 from constelite.hook import HookModel, HookConfig, HookManager, HookCall
+from constelite.utils import log_exception, async_log_exception
+
 from loguru import logger
 
 class ConsteliteAPI:
@@ -34,7 +32,7 @@ class ConsteliteAPI:
         self,
         name: str,
         version: Optional[str] = None,
-        stores: Optional[List[BaseStore]] = [],
+        stores: Optional[List[BaseStore | AsyncBaseStore]] = [],
         temp_store: Optional[BaseStore] = None,
         dependencies: Optional[Dict[str, Any]] = {},
         guid_map: Optional[GUIDMap] = None,
@@ -43,7 +41,7 @@ class ConsteliteAPI:
         hook_manager: Optional[HookManager] = None,
     ):
         self.name = name
-        self.version = version
+        self.version = version or "0.0.1"
         self.stores = stores or []
         self.protocols: List[ProtocolModel] = []
         self.hooks: List[HookModel] = []
@@ -61,7 +59,7 @@ class ConsteliteAPI:
         self._async_guid_map = async_guid_map
         self._guid_enabled = False
 
-        self.loggers = loggers
+        self.loggers = loggers or []
 
     def enable_guid(self):
         if self._guid_map is not None:
@@ -116,11 +114,8 @@ class ConsteliteAPI:
         await logger.initialise()
 
         return logger
-    def add_protocol(self, protocol: Union[Type[Protocol], Callable]):
-        if issubclass(protocol, Protocol):
-            protocol_model = protocol.get_model()
-        else:
-            protocol_model = getattr(protocol, '_protocol_model', None)
+    def add_protocol(self, protocol: ProtocolProtocol):
+        protocol_model = protocol.get_model()
 
         if protocol_model is not None:
             protocol_model.path = protocol_model.name
@@ -141,15 +136,11 @@ class ConsteliteAPI:
                 module,
                 lambda member: (
                     callable(member)
-                    and hasattr(member, '_protocol_model')
+                    and hasattr(member, 'get_model')
                 )
             )
 
-            self.protocols.extend(
-                [fn._protocol_model for _, fn in fn_protocols]
-            )
-
-            from constelite.protocol import Protocol
+            [self.add_protocol(fn) for _, fn in fn_protocols]
 
             cls_protocols = inspect.getmembers(
                 module,
@@ -160,9 +151,7 @@ class ConsteliteAPI:
                 )
             )
 
-            self.protocols.extend(
-                [cls.get_model() for _, cls in cls_protocols]
-            )
+            [self.add_protocol(cls) for _, cls in cls_protocols]
 
         for protocol_model in self.protocols:
             module_path = protocol_model.fn.__module__
@@ -198,7 +187,7 @@ class ConsteliteAPI:
                 [cls.get_model() for _, cls in hooks]
             )
 
-    def run(self) -> None:
+    def run(self, *args, **kwargs) -> None:
         raise NotImplementedError
 
     def get_hook(self, slug: str) -> HookModel | None:
@@ -279,16 +268,22 @@ class ConsteliteAPI:
     async def trigger_hook(self, ret: Any, hook_config: HookConfig) -> None:
         raise NotImplementedError
     
-    def get_store(self, uid: UUID4) -> StoreModel | None:
+    @log_exception
+    def get_store(self, uid: UUID4) -> BaseStore | AsyncBaseStore:
         """Looks up a store by its uid
         """
-        return next(
+        store =  next(
             (
                 store for store in self.stores
                 if store.uid == uid
             ),
             None
         )
+
+        if store is None:
+            raise ValueError(f"Store {uid} does not exist")
+        
+        return store
 
     def get_protocol(self, slug: str) -> ProtocolModel | None:
         protocol = next(
@@ -297,14 +292,18 @@ class ConsteliteAPI:
         )
 
         return protocol
-
-    async def run_protocol(self, slug: str, **kwargs):
+    @async_log_exception
+    async def run_protocol(self, slug: str, logger: Logger, **kwargs):
         protocol = self.get_protocol(slug=slug)
 
         if protocol is None:
             raise ValueError(f"Unknown protocol with slug {slug}")
         else:
-            return await protocol.fn(api=self, **kwargs)
+            try:
+                return await async_log_exception(protocol.fn)(api=self, logger=logger, **kwargs)
+            except Exception as e:
+                await logger.error(f"Failed to run protocol {slug}")
+                raise e
 
     def get_dependency(self, key):
         return self._dependencies.get(key, None)
