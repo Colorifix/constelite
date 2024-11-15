@@ -144,7 +144,7 @@ class RedisAPI(ConsteliteAPI):
 
     def create_worker(self, **kwargs: Any) -> arq.Worker:
         return ConsteliteWorker(
-            api=self.api, **{**self.get_kwargs(), **kwargs})
+            api=self, **{**self.get_kwargs(), **kwargs})
 
     def run(self, **kwargs: Any) -> arq.Worker:
         worker = self.create_worker(**kwargs)

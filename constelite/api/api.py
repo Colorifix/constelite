@@ -3,6 +3,8 @@ import importlib
 import inspect
 import asyncio
 
+from types import FunctionType
+
 from typing import Callable, Optional, List, Type, Dict, Any, Union
 from pydantic.v1 import UUID4, BaseModel
 
@@ -135,7 +137,7 @@ class ConsteliteAPI:
             fn_protocols = inspect.getmembers(
                 module,
                 lambda member: (
-                    callable(member)
+                    isinstance(member, FunctionType)
                     and hasattr(member, 'get_model')
                 )
             )
