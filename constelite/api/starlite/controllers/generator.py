@@ -1,6 +1,7 @@
 from typing import Any, Callable, List, TYPE_CHECKING
 import traceback
 import json
+from loguru import logger
 
 from litestar import Router, post
 from litestar.handlers import HTTPRouteHandler

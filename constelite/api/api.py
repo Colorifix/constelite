@@ -1,12 +1,14 @@
 import os
 import importlib
+import pkgutil
 import inspect
 import asyncio
 
-from types import FunctionType
+from types import FunctionType, ModuleType
 
 from typing import Callable, Optional, List, Type, Dict, Any, Union
 from pydantic.v1 import UUID4, BaseModel
+from pydantic.v1.generics import GenericModel
 
 from constelite.models import Ref,  StateModel
 from constelite.store import BaseStore, AsyncBaseStore
@@ -14,7 +16,7 @@ from constelite.guid_map import GUIDMap, AsyncGUIDMap
 from constelite.loggers.base_logger import LoggerConfig, Logger
 from constelite.protocol import Protocol, ProtocolModel, CallableProtocol, ProtocolProtocol
 from constelite.hook import HookModel, HookConfig, HookManager, HookCall
-from constelite.utils import log_exception, async_log_exception
+from constelite.utils import log_exception, async_log_exception, discover_members
 
 from loguru import logger
 
@@ -116,78 +118,101 @@ class ConsteliteAPI:
         await logger.initialise()
 
         return logger
-    def add_protocol(self, protocol: ProtocolProtocol):
+    def add_protocol(self, protocol: ProtocolProtocol, path: str):
         protocol_model = protocol.get_model()
 
         if protocol_model is not None:
-            protocol_model.path = protocol_model.name
+            protocol_model.path = path
             self.protocols.append(protocol_model)
+            logger.info(f"Adding protocol to API: {protocol_model.name}({protocol_model.path})")
         else:
-            logger.warning("Supplied protocol is invalid")
+            logger.warning("Supplied protocol is invalid")        
 
-    def discover_protocols(self, module_root: str, bind_path: str = "") -> None:
-        """Discovers protocols in the given module
+    @staticmethod
+    def get_protocols_from_module(module_name: str) -> list[ProtocolProtocol]:
+        module = importlib.import_module(module_name)
 
-        Args:
-            module_root: A name of the module to look for protocols
-            bind_path: A path where to bind the protocols
-        """
-        module = importlib.import_module(module_root)
-        if module is not None:
-            fn_protocols = inspect.getmembers(
-                module,
-                lambda member: (
-                    isinstance(member, FunctionType)
-                    and hasattr(member, 'get_model')
-                )
+        cls_protocols = inspect.getmembers(
+            module,
+            lambda member: (
+                inspect.isclass(member)
+                and issubclass(member, Protocol)
+                and member != Protocol
+                and '[' not in member.__name__
+                and GenericModel not in member.__bases__
             )
+        )
 
-            [self.add_protocol(fn) for _, fn in fn_protocols]
-
-            cls_protocols = inspect.getmembers(
-                module,
-                lambda member: (
-                    inspect.isclass(member)
-                    and issubclass(member, Protocol)
-                    and member != Protocol
-                )
+        fn_protocols = inspect.getmembers(
+            module,
+            lambda member: (
+                isinstance(member, FunctionType)
+                and hasattr(member, 'get_model')
             )
+        )
 
-            [self.add_protocol(cls) for _, cls in cls_protocols]
+        return [cls for _,cls in cls_protocols] + [fn for _,fn in fn_protocols]
+    @staticmethod
+    def generate_protocol_path(protocol: ProtocolProtocol, root_package: ModuleType, bind_path: str) -> str:
+        protocol_model = protocol.get_model()
+        module_path = protocol_model.fn.__module__
+        module_path = ".".join(
+            [part for part in module_path.split('.')[:-1]]
+        )
 
-        for protocol_model in self.protocols:
-            module_path = protocol_model.fn.__module__
-            module_path = ".".join(
-                [part for part in module_path.split('.')[:-1]]
+        module_path = module_path.replace(
+            root_package.__name__, ''
+        ).replace(
+            '.', '/'
+        ).strip('/')
+        return os.path.join(
+            bind_path, module_path, protocol_model.slug
+        )
+
+    def discover_protocols(self, root_module: ModuleType, bind_path:str=""):
+        cls_protocols = discover_members(
+            root_module,
+            lambda member: (
+                inspect.isclass(member)
+                and issubclass(member, Protocol)
+                and '[' not in member.__name__
+                and member.__subclasses__() == []
             )
+        )
 
-            module_path = module_path.replace(
-                module_root, ''
-            ).replace(
-                '.', '/'
-            ).strip('/')
-            protocol_model.path = os.path.join(
-                bind_path, module_path, protocol_model.slug
+        fn_protocols = discover_members(
+            root_module,
+            lambda member: (
+                isinstance(member, FunctionType)
+                and hasattr(member, 'get_model')
             )
+        )
+
+        for protocols in cls_protocols + fn_protocols:
+            protocol_path = self.generate_protocol_path(
+                protocols, root_module, bind_path
+            )
+            self.add_protocol(protocols, protocol_path)
     
-    def discover_hooks(self, module_root: str, bind_path: str = "") -> None:
-        module = importlib.import_module(module_root)
+    def add_hook(self, hook: 'Hook'):
+        hook_model = hook.get_model()
 
-        if module is not None:
-            from constelite.hook import Hook
+        logger.info(f"Adding hook to API: {hook_model.name})")
+        self.hooks.append(hook_model)
 
-            hooks = inspect.getmembers(
-                module,
-                lambda member: (
-                    inspect.isclass(member)
-                    and issubclass(member, Hook)
-                    and member != Hook
-                )
+    def discover_hooks(self, root_module: ModuleType, bind_path: str = "") -> None:
+        from constelite.hook import Hook
+        hooks = discover_members(
+            root_module,
+            lambda member: (
+                inspect.isclass(member)
+                and issubclass(member, Hook)
+                and member != Hook
             )
+        )
 
-            self.hooks.extend(
-                [cls.get_model() for _, cls in hooks]
-            )
+        for hook in hooks:
+            self.add_hook(hook)
 
     def run(self, *args, **kwargs) -> None:
         raise NotImplementedError

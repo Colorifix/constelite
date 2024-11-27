@@ -4,7 +4,7 @@ from arq.worker import Function
 from arq.connections import RedisSettings
 from constelite.api import ConsteliteAPI
 from typing import Optional, List, Type, Dict, Any
-from constelite.store import BaseStore
+from constelite.store import BaseStore, AsyncBaseStore
 from constelite.guid_map import GUIDMap, AsyncGUIDMap
 from constelite.loggers.base_logger import Logger
 import inspect
@@ -114,7 +114,7 @@ class RedisAPI(ConsteliteAPI):
     def __init__(self,
         name: str,
         version: Optional[str] = None,
-        stores: Optional[List[BaseStore]] = [],
+        stores: Optional[List[BaseStore | AsyncBaseStore]] = [],
         temp_store: Optional[BaseStore] = None,
         dependencies: Optional[Dict[str, Any]] = {},
         guid_map: Optional[GUIDMap] = None,

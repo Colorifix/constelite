@@ -26,9 +26,9 @@ class ExceptionClassProtocol(Protocol):
 @pytest.fixture
 def api():
     api = ConsteliteAPI(name="Test API")
-    api.add_protocol(ClassProtocol)
-    api.add_protocol(ExceptionClassProtocol)
-    api.add_protocol(fn_protocol)
+    api.add_protocol(ClassProtocol, "class_protocol")
+    api.add_protocol(ExceptionClassProtocol, "exception_class_protocol")
+    api.add_protocol(fn_protocol, "fn_protocol")
     return api
 
 @pytest.fixture

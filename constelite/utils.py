@@ -2,7 +2,13 @@ from functools import wraps
 import asyncio
 import datetime
 import re
-from typing import Type, Literal, Union,  Callable
+
+import pkgutil
+import importlib
+import inspect
+
+from types import ModuleType
+from typing import Type, Literal, Union,  Callable, Any
 from typing import get_origin, get_args
 from typing_extensions import Annotated
 from loguru import logger
@@ -135,3 +141,18 @@ def async_log_exception(fn: Callable) -> Callable:
             logger.patch(lambda r: r.update(function=fn.__name__, name= fn.__module__, line=-1)).error(repr(e))
             raise e
     return wrapped_fn
+
+def discover_members(root_module: ModuleType, predicate: Callable[[Any], bool]) -> list[Any]:
+    members = []
+    for _, module_name, is_pkg in pkgutil.walk_packages(root_module.__path__, root_module.__name__ + "."):
+        if not is_pkg:
+            try:
+                module = importlib.import_module(module_name)
+                new_members = inspect.getmembers(
+                    module,
+                    predicate
+                )
+                members.extend([member for _, member in new_members])
+            except ImportError:
+                logger.error(f"Failed to import module: {module_name}")
+    return members

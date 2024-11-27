@@ -53,15 +53,12 @@ class CamundaAPI(ConsteliteAPI):
         self.hook_timeout = 1000 * 30
 
     def run(self):
-
         self.runtime._connect()
 
         for protocol_model in self.protocols:
-            logger.info(f"Registering protocol {protocol_model.name}")
             self.register_protocol(protocol_model=protocol_model)
         
         for hook_model in self.hooks:
-            logger.info(f"Registering hook {hook_model.name}")
             self.register_hook(hook_model=hook_model)
 
         loop = asyncio.get_event_loop()

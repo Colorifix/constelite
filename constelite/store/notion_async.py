@@ -1,9 +1,12 @@
+from __future__ import annotations
 import asyncio
-from typing import Type, Dict, Optional, List, ClassVar, ForwardRef
+from types import ModuleType
+from typing import ClassVar, ForwardRef
+import inspect
 
 from uuid import UUID
 
-from pydantic.v1 import BaseModel, Field, AnyUrl
+from pydantic.v1 import BaseModel, Field
 import more_itertools
 from urllib.parse import urljoin
 
@@ -23,9 +26,9 @@ from python_notion_api.models.values import (
     RollupPropertyValue,
     StatusPropertyValue,
 )
-from constelite.utils import EntryDeletedException
+from constelite.utils import EntryDeletedException, discover_members
 
-
+from loguru import logger
 
 from constelite.models import (
     StateModel,
@@ -87,13 +90,13 @@ filter_map = {
 
 
 class ModelHandler(BaseModel):
-    store: ClassVar[Optional["NotionStore"]] = Field(exclude=True)
-
+    store: ClassVar[NotionStore | None] = Field(exclude=True)
+    _models: ClassVar[list[type[StateModel]] | None] = Field(exclude=True, default=[])
     class Config:
         arbitrary_types_allowed = True
         allow_population_by_field_name = True
 
-    def _to_prop_dict(self) -> Dict[str, PropertyValue]:
+    def _to_prop_dict(self) -> dict[str, PropertyValue]:
         return {
             field.alias: getattr(self, field_name)
             for field_name, field in self.__fields__.items()
@@ -206,7 +209,7 @@ class ModelHandler(BaseModel):
         return property_value
 
     @classmethod
-    async def from_page_id(cls, uid: UID) -> "ModelHandler":
+    async def from_page_id(cls, uid: UID) -> ModelHandler:
         page = NotionPage(api=cls.store.api, page_id=uid)
         
         await page.reload()
@@ -215,7 +218,7 @@ class ModelHandler(BaseModel):
         return await cls.from_page(page)
 
     @classmethod
-    async def from_page(cls, page: NotionPage) -> "ModelHandler":
+    async def from_page(cls, page: NotionPage) -> ModelHandler:
         tasks = {}
         async with asyncio.TaskGroup() as tg:
             for field_name in cls.__fields__:
@@ -230,7 +233,7 @@ class ModelHandler(BaseModel):
 
         return handler
 
-    async def convert_to_state(self, state_type: Type[StateModel],
+    async def convert_to_state(self, state_type: type[StateModel],
                          **props):
         """
         Converts NotionHandler object to constelite state using
@@ -343,9 +346,9 @@ class NotionStore(AsyncBaseStore):
 
     access_token: str = Field(exclude=True)
 
-    model_handlers: Optional[Dict[Type[StateModel], Type[ModelHandler]]] = {}
-    api: Optional[AsyncNotionAPI] = Field(exclude=True)
-    base_url: Optional[str]
+    model_handlers: dict[type[StateModel], type[ModelHandler]] | None = {}
+    api: AsyncNotionAPI | None = Field(exclude=True, default=None)
+    base_url: str | None
 
     class Config:
         arbitrary_types_allowed = True
@@ -354,7 +357,29 @@ class NotionStore(AsyncBaseStore):
         super().__init__(**data)
         self.api = AsyncNotionAPI(access_token=self.access_token)
 
-    def get_handler_cls_or_fail(self, model_type: Type[StateModel]):
+    def discover_handlers(self, root_module: ModuleType):
+        handlers = discover_members(
+            root_module,
+            lambda member: (
+                inspect.isclass(member)
+                and issubclass(member, ModelHandler)
+                and member!= ModelHandler
+            )
+        )
+
+        for handler_cls in handlers:
+            handled_models = handler_cls._models
+            logger.info(f"Discovering handler for {handler_cls.__name__}")
+            if not isinstance(handled_models, list) or len(handled_models) == 0:
+                logger.warning(f"Found handler with no models to handle, {handler_cls.__name__}")
+                continue
+            for model_cls in handled_models:
+                if model_cls not in self.model_handlers:
+                    self.model_handlers[model_cls] = handler_cls
+                else:
+                    logger.warning(f"Duplicate handler for {model_cls}. Already registered with {handler_cls}, skipping...")
+
+    def get_handler_cls_or_fail(self, model_type: type[StateModel]):
         handler_cls = self.model_handlers.get(model_type, None)
 
         if handler_cls is not None:
@@ -365,7 +390,7 @@ class NotionStore(AsyncBaseStore):
                 f"{model_type} is not supported by the {self.name} store"
             )
 
-    async def uid_exists(self, uid: UID, model_type: Type[StateModel]) -> bool:
+    async def uid_exists(self, uid: UID, model_type: type[StateModel]) -> bool:
         # Since Notion operations are slow, we will ignore checks for existance
         # and deal wit them somewhere else in code.
         return True
@@ -373,8 +398,8 @@ class NotionStore(AsyncBaseStore):
     async def create_model(
         self,
         model_type: StateModel,
-        static_props: Dict[str, StaticTypes],
-        dynamic_props: Dict[str, Optional[Dynamic]]
+        static_props: dict[str, StaticTypes],
+        dynamic_props: dict[str, Dynamic | None]
     ) -> UID:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
@@ -388,7 +413,7 @@ class NotionStore(AsyncBaseStore):
 
     async def delete_model(
             self,
-            model_type: Type[StateModel],
+            model_type: type[StateModel],
             uid: UID) -> None:
 
         page = NotionPage(api=self.api, page_id=uid)
@@ -397,8 +422,8 @@ class NotionStore(AsyncBaseStore):
     async def overwrite_static_props(
             self,
             uid: UID,
-            model_type: Type[StateModel],
-            props: Dict[str, StaticTypes]
+            model_type: type[StateModel],
+            props: dict[str, StaticTypes]
     ) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
@@ -411,8 +436,8 @@ class NotionStore(AsyncBaseStore):
     async def overwrite_dynamic_props(
             self,
             uid: UID,
-            model_type: Type[StateModel],
-            props: Dict[str, Optional[Dynamic]]) -> None:
+            model_type: type[StateModel],
+            props: dict[str, Dynamic | None]) -> None:
 
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
@@ -425,8 +450,8 @@ class NotionStore(AsyncBaseStore):
     async def extend_dynamic_props(
             self,
             uid: UID,
-            model_type: Type[StateModel],
-            props: Dict[str, Optional[Dynamic]]
+            model_type: type[StateModel],
+            props: dict[str, Dynamic | None]
     ) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
@@ -453,8 +478,8 @@ class NotionStore(AsyncBaseStore):
     async def delete_all_relationships(
             self,
             from_uid: UID,
-            from_model_type: Type[StateModel],
-            rel_from_name: str) -> List[UID]:
+            from_model_type: type[StateModel],
+            rel_from_name: str) -> list[UID]:
 
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
@@ -484,7 +509,7 @@ class NotionStore(AsyncBaseStore):
     async def create_relationships(
             self,
             from_uid: UID,
-            from_model_type: Type[StateModel],
+            from_model_type: type[StateModel],
             inspector: RelInspector) -> None:
         handler_cls = self.get_handler_cls_or_fail(model_type=from_model_type)
 
@@ -510,7 +535,7 @@ class NotionStore(AsyncBaseStore):
     async def get_state_by_uid(
             self,
             uid: UID,
-            model_type: Type[StateModel]
+            model_type: type[StateModel]
     ) -> StateModel:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
 
@@ -520,8 +545,8 @@ class NotionStore(AsyncBaseStore):
 
     async def execute_query(
             self,
-            query: Optional[Query],
-            model_type: Type[StateModel],
+            query: Query | None,
+            model_type: type[StateModel],
             include_states: bool
     ) -> UID:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
@@ -566,7 +591,7 @@ class NotionStore(AsyncBaseStore):
 
         return uids
 
-    async def write_relations(self, rel, method) -> List[Ref]:
+    async def write_relations(self, rel, method) -> list[Ref]:
         refs = []
         for to_ref in rel.to_refs:
             if to_ref.state is None:
