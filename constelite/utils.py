@@ -1,3 +1,4 @@
+from typing import TypeVar, Awaitable
 from functools import wraps
 import asyncio
 import datetime
@@ -131,7 +132,9 @@ def log_exception(fn: Callable) -> Callable:
             raise e
     return wrapped_fn
 
-def async_log_exception(fn: Callable) -> Callable:
+C = TypeVar('C', bound=Callable)
+
+def async_log_exception(fn: C) -> C:
     @wraps(fn)
     async def wrapped_fn(*args, **kwargs):
         try:
