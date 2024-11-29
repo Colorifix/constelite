@@ -747,7 +747,6 @@ class TestNeofluxStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
         }
     )
 
-
 class TestMemcachedStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
     # Run a local memcached instance to get this to work
     store = MemcachedStore(

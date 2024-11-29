@@ -1,3 +1,6 @@
+from types import FunctionType
+import functools
+
 from typing import TypeVar, Awaitable
 from functools import wraps
 import asyncio
@@ -141,7 +144,17 @@ def async_log_exception(fn: C) -> C:
             ret = await fn(*args, **kwargs)
             return ret
         except Exception as e:
-            logger.patch(lambda r: r.update(function=fn.__name__, name= fn.__module__, line=-1)).error(repr(e))
+            
+            fn_name = getattr(fn, '__name__', fn.__repr__)
+            fn_module = getattr(fn, '__module__', 'unnknown_module')
+            
+            if isinstance(fn, FunctionType):
+                fn_name = fn.__name__
+            elif isinstance(fn, functools.partial):
+                fn_name = fn.func.__name__
+                fn_module = fn.func.__module__
+
+            logger.patch(lambda r: r.update(function=fn_name, name= fn_module, line=-1)).error(repr(e))
             raise e
     return wrapped_fn
 
