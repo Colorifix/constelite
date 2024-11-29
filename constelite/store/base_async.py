@@ -192,7 +192,7 @@ class AsyncBaseStore(StoreModel):
 
     async def execute_query(
             self,
-            query: Query,
+            query: Optional[Query],
             model_type: Type[StateModel],
             include_states: bool
     ) -> Dict[UID, Optional[StateModel]]:

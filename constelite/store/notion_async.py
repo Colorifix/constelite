@@ -152,7 +152,7 @@ class ModelHandler(BaseModel):
 
         new_page = await self.store.api._post("pages", data=data)
 
-        return new_page.page_id
+        return new_page.page_id.replace('-', '')
 
     async def update_page(self, uid: UID):
         properties = self._to_prop_dict()
@@ -357,6 +357,10 @@ class NotionStore(AsyncBaseStore):
         super().__init__(**data)
         self.api = AsyncNotionAPI(access_token=self.access_token)
 
+    async def _validate_ref_uid(self, ref: Ref):
+        await super()._validate_ref_uid(ref)
+        ref.record.uid = str(UUID(ref.uid)).replace('-','')
+
     def discover_handlers(self, root_module: ModuleType):
         handlers = discover_members(
             root_module,
@@ -548,7 +552,7 @@ class NotionStore(AsyncBaseStore):
             query: Query | None,
             model_type: type[StateModel],
             include_states: bool
-    ) -> UID:
+    ) -> dict[str, StateModel | None]:
         handler_cls = self.get_handler_cls_or_fail(model_type=model_type)
         database = await self.api.get_database(
             database_id=handler_cls._database_id,
@@ -581,12 +585,12 @@ class NotionStore(AsyncBaseStore):
                     )
 
             uids = {
-                str(UUID(page_id)): task.result()
+                page_id.replace('-', ''): task.result()
                 for page_id, task in tasks.items()
             }
         else:
             uids = {
-                str(UUID(page.page_id)): None async for page in pages
+                page.page_id.replace('-', ''): None async for page in pages
             }
 
         return uids
@@ -656,8 +660,8 @@ class NotionStore(AsyncBaseStore):
         if ref.record is None:
             uid = await self.create_page_from_state(new_state)
         else:
-            uid = ref.uid
             ref = await self._validate_ref_full(ref)
+            uid = ref.uid
 
             await self.update_page_from_state(
                 state=new_state,
