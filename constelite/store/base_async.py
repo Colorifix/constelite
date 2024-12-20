@@ -16,6 +16,7 @@ from pydantic.v1 import BaseModel, root_validator, PrivateAttr, UUID4, AnyUrl
 
 from constelite.graphql.schema import GraphQLSchemaManager
 from constelite.graphql.utils import GraphQLQuery, GraphQLModelQuery
+from constelite.utils import async_map
 
 from constelite.models import (
     StateModel,
@@ -548,6 +549,10 @@ class AsyncBaseStore(StoreModel):
             uid=ref.record.uid,
             state=state
         )
+
+    async def bulk_get(self, refs: list[Ref]) -> list[Ref]:
+        self._validate_method('GET')
+        return await async_map(self.get, refs)
 
     async def query(
         self,

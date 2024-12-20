@@ -25,21 +25,10 @@ def get_dataloader(store, cls):
 
     """
     async def loading_function(uids):
-        tasks = []
-
-        async with asyncio.TaskGroup() as tg:
-            for uid in uids:
-                tasks.append(
-                    tg.create_task(store.get(
-                        ref=ref(
-                            uid=uid,
-                            store=store,
-                            model=cls
-                        )
-                    ))
-                )
-
-        return [task.result() for task in tasks]
+        refs = [
+            ref(uid=uid, store=store, model=cls) for uid in uids
+        ]
+        return await store.bulk_get(refs)
 
     return DataLoader(loading_function)
 

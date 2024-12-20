@@ -15,7 +15,7 @@ from functools import partial
 
 from pydantic.v1 import root_validator, PrivateAttr, UUID4, AnyUrl
 
-from constelite.utils import all_subclasses, to_thread
+from constelite.utils import all_subclasses, to_thread, async_map
 from constelite.store.queries import Query, BackrefQuery
 
 from constelite.models import (
@@ -540,6 +540,10 @@ class BaseStore(StoreModel):
                 model_type=model_type
             )
         )
+
+    async def bulk_get(self, refs: list[Ref]) -> list[Ref]:
+        self._validate_method('GET')
+        return await async_map(self.get, refs)
 
     @to_thread
     def query(

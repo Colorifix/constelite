@@ -722,6 +722,32 @@ class StoreTestMixIn():
         except NotImplementedError:
             pass
 
+    async def test_bulk_get(self):
+
+        try:
+            self.store._validate_method('GET')
+
+            ref1 = await self.store.put(
+                ref=ref(
+                    Qux(name="Qux1")
+                )
+            )
+            ref2 = await self.store.put(
+                ref=ref(
+                    Qux(name="Qux2")
+                )
+            )
+
+            ref1, ref2 = await self.store.bulk_get([ref1, ref2])
+            assert ref1.name == "Qux1"
+            assert ref2.name == "Qux2"
+
+            # delete the items to clean up
+            await self.store.delete(ref1)
+            await self.store.delete(ref2)
+        except NotImplementedError:
+            pass
+
 
 class TestPickleStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
     store = PickleStore(
