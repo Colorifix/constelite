@@ -15,7 +15,6 @@ from constelite.store.neoflux import (
     NeoConfig,
     InfluxConfig
 )
-from constelite.store.notion_async import NotionStore
 
 from constelite.store.memory import MemoryStore
 
@@ -30,7 +29,6 @@ __all__ = [
     'NeofluxStore',
     'NeoConfig',
     'InfluxConfig',
-    'NotionStore',
     'MemcachedStore',
     'MemoryStore'
 ]
