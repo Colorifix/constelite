@@ -11,7 +11,7 @@ For example, we have MemoryStore, which stores records in memory, or NeofluxStor
 
 ## Why can't we use existing libraries to talk to data provider?
 
-You are right, there is a Python Notion API and plenty of libraries to talk with Neo4j. And we use them inside constelite store classes.
+You are right, there are plenty of libraries to talk with Neo4j. And we use them inside constelite store classes.
 
 Stores are just wrappers with a standard API so that constelite and constelite users don't need to worry about particular ways of reading and writing data associated with a particular data provider. All specific logic is implemented inside stores once and  is then reused through a standard interface.
 
@@ -30,9 +30,6 @@ store.put(ref=r_cat)
 ```
 
 Where the record is created will depend on the `store` object.
-
-!!! info
-    Don't worry about `ref()` for now. We will look at it later.
 
 ## Store methods
 
