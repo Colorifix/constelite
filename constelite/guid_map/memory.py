@@ -7,7 +7,7 @@ from constelite.models import UID
 
 class MemoryGUID(AsyncGUIDMap):
 
-    guid_map: dict[UUID4, dict[str, UUID4]] | None = {}
+    guid_map: dict[UUID4, dict[str, UUID4]] = {}
     
     async def get_guid(self, uid: UID, store: "BaseStore") -> UUID4 | None:
         """Finds entity by given uid in the given store and returns its
