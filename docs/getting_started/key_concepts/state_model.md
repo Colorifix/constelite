@@ -36,8 +36,6 @@ store.patch(ref=r_cat)
 
 By allowing partial states we avoid necessity to retrieve an object state from store before editing it. Hence minimizing amount of data we transport over the network.
 
-!!! note
-    Can probably done better. We can override `StateModel.__init__` to use `BaseModel.model_construct()` to avoid validation on object creation and validate full object where required manually. MRs welcome
 
 ## Model resolution
 
@@ -65,8 +63,3 @@ Cat(model_name='Cat', name='Snowball')
 >>> cat.mew()
 Snowball says mew!
 ```
-
-## Field types
-
-!!! warning
-    Under construction

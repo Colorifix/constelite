@@ -4,7 +4,9 @@
 
 API is a component of constelite that exposes protocols and stores to clients. 
 
-Currently constelite has only API, StarliteAPI, which serves protocols and stores over HTTP. 
+It is an abstraction that separates the business logic of protocols from the way protocols are triggered.
 
-However, API is an abstract layer and different implementations can be added. For example, we have CamundaAPI in development, which will expose protocols through [zeebe](https://github.com/camunda/zeebe), allowing Camunda engine to execute them.
+For example, StarliteAPI, exposes protocols over HTTP. Constelite also comes packaged with CamundaAPI, and RedisAPI.
+
+You can add your own APIs to handle other triggers.
 

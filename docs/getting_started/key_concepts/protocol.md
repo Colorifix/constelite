@@ -3,7 +3,7 @@
 
 ## Intro
 
-Protocol is just a fancy word for a serverless function. It's just a Python function that has access to constelite and hence has access to all other protocols and stores.
+Protocol is just a fancy word for a serverless function. It's just a Python function that has access to constelite API and hence has access to all other protocols and stores.
 
 ## Anatomy of a protocol
 
@@ -15,9 +15,13 @@ When your protocol is simple you can define it using a `@protocol` wrapper.
 
 ```py
 from constelite.protocol import protocol
+from constelite.api import ConsteliteAPI
+from constelite.models import Ref
+
+from constelite_demo import Cat
 
 @protocol
-async def herd_a_cat(api, r_cat: Ref[Cat]) -> bool:
+async def herd_a_cat(api: ConsteliteAPI, r_cat: Ref[Cat]) -> bool:
     await api.get_state(r_cat)
     ...
 
@@ -32,11 +36,14 @@ When the logic of a protocol is complex, you might want to wrap it into a class.
 
 ```py
 from constelite.protocol import Protocol
+from constelite.models import Ref
+
+from constelite_demo import Cat
 
 class HerdACat(Protocol):
     r_cat: Ref[Cat]
 
-    def run(self, api) -> bool
+    def run(self, api: ConsteliteAPI) -> bool
         ...
 
         return False

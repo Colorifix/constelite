@@ -25,7 +25,7 @@ Below is an example of a serialized `r_cat: Ref[Cat]` object without a state:
     "record": {
         "uid": "0af5e0c7-9b81-4abb-9b2b-8d373e263461",
         "store":{
-            "name": "NotionStore",
+            "name": "MemoryStore",
             "uid": "68550a51-f1b7-456b-8ed3-4b0f7a7f810c"
         }
     },
@@ -34,7 +34,7 @@ Below is an example of a serialized `r_cat: Ref[Cat]` object without a state:
     "state": null
 }
 ```
-This reference tells us that it points to a record `0af5e0c7-9b81-4abb-9b2b-8d373e263461` in the Notion store and the type of the record is `Cat`.
+This reference tells us that it points to a record `0af5e0c7-9b81-4abb-9b2b-8d373e263461` in the memory store and the type of the record is `Cat`.
 
 We can use this reference to retrieve the state of the record:
 
@@ -53,7 +53,7 @@ which will transform the reference to:
     "record": {
         "uid": "0af5e0c7-9b81-4abb-9b2b-8d373e263461",
         "store":{
-            "name": "NotionStore",
+            "name": "MemoryStore",
             "uid": "68550a51-f1b7-456b-8ed3-4b0f7a7f810c"
         }
     },
@@ -81,4 +81,4 @@ The difference between the reference uid and reference guid is that the former u
 
 Let's take the cat called "Snowball" as an example. Snowball is an unique entity. There is no other cat like her. Let's give her a microchip that hold her global unique identifier (4b0f7a7f810c). In the vet's database, Snowball is known as patient "304059" (her unique identifier in the database). If Snowball moves to another country, she might register with another vet and have a different uid in the new database.
 
-Reference always points to a particular record in a particular database, but it also contains information about the entity that the records belongs to.
+Reference always points to a particular record in a particular database (uid), but it also contains information about the entity that the records belongs to (guid).

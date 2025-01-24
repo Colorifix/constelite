@@ -4,10 +4,10 @@ Think of a store as a constelite wrapper around an API of a data provider.
 
 Every store is represented by a [BaseStore][constelite.store.BaseStore] object. If we want to connect to a data provider through constelite we need to create a store of a corresponding type.
 
-For example, we have [NotionStore][constelite.store.NotionStore], which handles data operations with [Notion](https://notion.so), and [NeofluxStore][constelite.store.NeofluxStore], which handles internal Neo4j and InfluxDB databases.
+For example, we have MemoryStore, which stores records in memory, or NeofluxStore, which stores records in external Neo4j and InfluxDB databases.
 
 !!! note
-    If you want to reach another kind of data provider, you need to write a new [BaseStore][constelite.store.BaseStore] class.
+    If you want to reach another kind of data provider, you need to write a new store class.
 
 ## Why can't we use existing libraries to talk to data provider?
 
