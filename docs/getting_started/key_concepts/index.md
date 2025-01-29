@@ -5,7 +5,11 @@ Here are some key concepts we use in Constelite:
 
 [State model](state_model.md)
 
-:   A model of object's state defined as a Python class derived from [`StateModel`][constelite.models.StateModel].
+:   A model of object's state.
+
+[Relationships](relations.md)
+
+:   Relationships between models.
 
 [Store](store.md)
 

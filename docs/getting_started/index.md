@@ -19,6 +19,7 @@ This is more of an advice to get started rather than a hard rule.
 .
 ├── README.md
 ├── constelite_demo
+│   ├── __init__.py
 │   ├── api.py
 │   ├── models
 │   └── protocols
@@ -76,11 +77,11 @@ api.generate_app() # generate Litestar app
 api.run('localhost', 8001) # Start API
 ```
 
-Now we have a litestar server running that serves our protocol. You can navigate to `http://localhost:8000/schema` to the OpenAPI documentation.
+Now we have a litestar server running that serves our protocol. You can navigate to [http://localhost:8001/schema]{:target="_blank"} to the OpenAPI documentation.
 
 ## Create a simple model
 
-Let's create a first model in the `/models/cat.py` folder.
+Let's create a first model in the `/models/cat.py` file.
 
 ```python
 from constelite.models import StateModel
@@ -94,6 +95,8 @@ All modles in constelite must inherit from the [StateModel](key_concepts/state_m
 
 ## What's next?
 
+Check out [User Guide](user_guide) for more examples to get you started.
+
 Check out [Key concepts](key_concepts/) to learn more about constelite way of thinking.
 
-Check out [User Guide](user_guide) for more examples to get you started.
+[http://localhost:8001/schema]: http://localhost:8001/schema

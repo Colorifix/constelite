@@ -26,7 +26,7 @@ class Cat(Creature):
 
 ## Why Optional ?
 
-Indeed... All fields of [`StateModel`][constelite.models.StateModel] should be optional to allow exchange of 'partial state models'. Partial states are used when we want to update only certain fields on an object. For example, we might want to only update the name of a cat and not their owner. We would do so by invoking a `patch` method of a store:
+Indeed... All fields of `StateModel` should be optional to allow exchange of 'partial state models'. Partial states are used when we want to update only certain fields on an object. For example, we might want to only update the name of a cat and not their owner. We would do so by invoking a `patch` method of a store:
 
 ```python
 r_cat = ref(Cat(name='New name'))
@@ -39,7 +39,7 @@ By allowing partial states we avoid necessity to retrieve an object state from s
 
 ## Model resolution
 
-Let's dump a [`StateModel`][constelite.models.StateModel]
+Let's dump a `StateModel`
 
 ```python
 >>> cat = Cat(name="Snowball")
