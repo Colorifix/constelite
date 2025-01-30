@@ -1,6 +1,6 @@
 # Welcome to Constelite
 
-![Logo](./docs/img/logo.png)
+<img src="./docs/img/logo.png" alt="Logo" width="100"/>
 
 Constelite is a framework for dealing with data exchange between external/internal data providers.
 
