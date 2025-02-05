@@ -16,17 +16,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get Gitflow App token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.GITFLOW_APP_ID  }}
+          private-key: ${{ secrets.GITFLOW_APP_KEY }}
+      
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
+          ref: develop
 
       - name: Merge Source Branch into Develop
         run: |
           git config --global user.name "bot"
           git config --global user.email "bot@colorifix.com"
-          git fetch
-          git checkout develop
           git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
           git push origin develop -f
 
