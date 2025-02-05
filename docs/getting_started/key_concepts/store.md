@@ -4,14 +4,14 @@ Think of a store as a constelite wrapper around an API of a data provider.
 
 Every store is represented by a [BaseStore][constelite.store.BaseStore] object. If we want to connect to a data provider through constelite we need to create a store of a corresponding type.
 
-For example, we have [NotionStore][constelite.store.NotionStore], which handles data operations with [Notion](https://notion.so), and [NeofluxStore][constelite.store.NeofluxStore], which handles internal Neo4j and InfluxDB databases.
+For example, we have MemoryStore, which stores records in memory, or NeofluxStore, which stores records in external Neo4j and InfluxDB databases.
 
 !!! note
-    If you want to reach another kind of data provider, you need to write a new [BaseStore][constelite.store.BaseStore] class.
+    If you want to reach another kind of data provider, you need to write a new store class.
 
 ## Why can't we use existing libraries to talk to data provider?
 
-You are right, there is a Python Notion API and plenty of libraries to talk with Neo4j. And we use them inside constelite store classes.
+You are right, there are plenty of libraries to talk with Neo4j. And we use them inside constelite store classes.
 
 Stores are just wrappers with a standard API so that constelite and constelite users don't need to worry about particular ways of reading and writing data associated with a particular data provider. All specific logic is implemented inside stores once and  is then reused through a standard interface.
 
@@ -30,9 +30,6 @@ store.put(ref=r_cat)
 ```
 
 Where the record is created will depend on the `store` object.
-
-!!! info
-    Don't worry about `ref()` for now. We will look at it later.
 
 ## Store methods
 

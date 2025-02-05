@@ -1,0 +1,76 @@
+name: Release workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: true
+        description: 'Version number to release in X.Y.Z format'
+      dry_run:
+        type: boolean
+        default: true
+        description: 'Dry run'
+  pull_request:
+    types:
+      - closed
+    branches:
+      - 'main'
+
+jobs:
+  release_workflow:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/'))
+    steps:
+    - name: Gitflow action
+      id: gitflow-action
+      uses: hoangvvo/gitflow-workflow-action@0.3.7
+      with:
+        develop_branch: "develop"
+        main_branch: "main"
+        version: ${{ inputs.version }}
+        version_increment: ${{ contains(github.head_ref, 'hotfix/') && 'patch' || ''   }}
+        dry_run: ${{ inputs.dry_run }}
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ steps.gitflow-action.outputs.release_branch || 'main' }}
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+  
+    - name: Install Poetry
+      uses: abatilo/actions-poetry@v2
+      with:
+        poetry-version: 'latest'
+
+    # Bumping version if we are in the 'create release PR mode'
+    - name: Bump version
+      if: ${{ steps.gitflow-action.outputs.release_branch }}
+      env:
+        VERSION: ${{ steps.gitflow-action.outputs.version  }}
+      run: poetry version $VERSION
+    
+    # Committing bumped version to the release branch
+    - name: Commit new version
+      if: ${{ steps.gitflow-action.outputs.release_branch }}
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "Bump version to ${{ steps.gitflow-action.outputs.version }}"
+
+    # Building and publishing if we are in 'created new release mode'
+    - name: Build and publish package
+      if: ${{ !steps.gitflow-action.outputs.release_branch }}
+      env:
+        PYPI_TOKEN: ${{ secrets.PYPI_TOKEN  }}
+      run: |
+        poetry config pypi-token.pypi $PYPI_TOKEN
+        poetry publish --build

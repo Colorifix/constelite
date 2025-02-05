@@ -44,7 +44,7 @@ class MemoryStore(UIDKeyStoreBase):
             self,
             model_type: Type[StateModel],
             uid: UID) -> None:
-        if self.uid_exists(
+        if await self.uid_exists(
             uid=uid,
             model_type=model_type
         ):

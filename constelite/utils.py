@@ -16,7 +16,6 @@ from typing import Type, Literal, Union,  Callable, Any
 from typing import get_origin, get_args
 from typing_extensions import Annotated
 from loguru import logger
-from python_notion_api import DateObject
 
 
 def resolve_forward_ref(forward_ref, root_cls):
@@ -89,26 +88,8 @@ def get_field_extra(field, key_name):
     return key_value
 
 
-def validate_datetime_property_start(value: Union[datetime.datetime,
-                                                  DateObject]) \
-        -> datetime.datetime:
-    """
-    Validate a datetimem property of a model.
-    When getting datetime from Notion, it is returned as a DateObject, which
-    has multiple properties. Usually we will want the 'start'.
-    Args:
-        value:
-
-    Returns:
-
-    """
-
-    if isinstance(value, DateObject):
-        return value.start
-    return value
-
-
-class EntryDeletedException(Exception): pass
+class EntryDeletedException(Exception):
+    pass
 
 
 def get_exception_string(err: Union[Exception, ExceptionGroup]) -> str:

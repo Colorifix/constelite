@@ -5,8 +5,6 @@ Here are some guides to using Constelite:
 
 [Calling Protocols](calling_protocols.md)
 
-[Converters](converters.md)
-
-[Camunda](camunda.md)
+[Using stores](using_stores.md)
 
 [GraphQL Queries](graphql.md)

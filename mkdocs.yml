@@ -1,10 +1,10 @@
 site_name: Constelite
-repo_url: https://gitlab.com/colorifix/constelite/constelite
+repo_url: https://github.com/Colorifix/constelite
 repo_name: Colorifix/constelite
 theme:
   name: material
   icon:
-    repo: fontawesome/brands/gitlab
+    repo: fontawesome/brands/github-alt
   logo: img/logo.png
   favicon: img/logo.png
   features:
@@ -45,12 +45,12 @@ nav:
     - User guide:
       - getting_started/user_guide/index.md
       - Calling protocols: getting_started/user_guide/calling_protocols.md
-      - Working with Camunda API: getting_started/user_guide/camunda.md
-      - Writing a converter protocol: getting_started/user_guide/converters.md
+      - Using stores: getting_started/user_guide/using_stores.md
       - GraphQL queries: getting_started/user_guide/graphql.md
     - Key concepts:
       - getting_started/key_concepts/index.md
       - State Model: getting_started/key_concepts/state_model.md
+      - Relationships: getting_started/key_concepts/relations.md
       - Store: getting_started/key_concepts/store.md
       - Reference: getting_started/key_concepts/ref.md
       - Protocol: getting_started/key_concepts/protocol.md
@@ -58,12 +58,7 @@ nav:
       - Hook: getting_started/key_concepts/hook.md
   - For Developers:
     - for_developers/index.md
+    - Adding new store: for_developers/new_store.md
+    - Adding new API: for_developers/new_api.md
     - GraphQL: for_developers/graphql.md
-    - CamundaAPI: for_developers/camunda_api.md
     - Error Logging: for_developers/error_logging.md
-    - API:
-      - constelite:
-        - models:
-          - for_developers/API/constelite/models/state_model.md
-        - store:
-          - for_developers/API/constelite/models/store.md

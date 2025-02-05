@@ -1,9 +1,11 @@
 import unittest
+
+from uuid import uuid4
+
 from typing import Optional, ForwardRef, List, Type
 
 import pandera as pa
 
-from colorifix_alpha.util import get_config
 from constelite.models import (
     StateModel, ref, Dynamic, TimePoint,
     Tensor, TensorSchema,
@@ -11,9 +13,7 @@ from constelite.models import (
     backref
 )
 from constelite.store import (
-    PickleStore,
-    NeofluxStore,
-    MemcachedStore,
+    MemoryStore,
     PropertyQuery,
     BaseStore
 )
@@ -749,33 +749,8 @@ class StoreTestMixIn():
             pass
 
 
-class TestPickleStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
-    store = PickleStore(
-        uid=get_config("stores", "pickle_store", "uid"),
-        name="Pickle Rick",
-        path=get_config("stores", "pickle_store", "path")
-    )
-
-
-class TestNeofluxStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
-    store = NeofluxStore(
-        uid=get_config("stores", "neoflux_store", "uid"),
-        name="StarGate",
-        neo_config={
-            "url": get_config("stores", "neoflux_store", "neo_config", "url"),
-            "auth": get_config("stores", "neoflux_store", "neo_config", "auth")
-        },
-        influx_config={
-            "url": get_config("stores", "neoflux_store", "influx_config", "url"),
-            "org": get_config("stores", "neoflux_store", "influx_config", "org"),
-            "bucket": get_config("stores", "neoflux_store", "influx_config", "bucket"),
-            "token": get_config("stores", "neoflux_store", "influx_config", "token")
-        }
-    )
-
-class TestMemcachedStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
-    # Run a local memcached instance to get this to work
-    store = MemcachedStore(
-        uid=get_config("stores", "memcached_store", "uid"),
-        host=get_config("stores", "memcached_store", "host"),
+class TestMemoryStore(unittest.IsolatedAsyncioTestCase, StoreTestMixIn):
+    store = MemoryStore(
+        uid=uuid4(),
+        name="MemoryStore",
     )

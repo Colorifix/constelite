@@ -170,7 +170,7 @@ class GrapheneModelAttributes:
         Returns:
 
         """
-        related_model = field_type.model
+        related_model = field_type.model()
         if isinstance(related_model, ForwardRef):
             related_model = resolve_forward_ref(related_model, StateModel)
         # Need to convert to the graphene version
