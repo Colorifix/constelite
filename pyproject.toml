@@ -2,7 +2,10 @@
 name = "constelite"
 version = "0.1.0"
 description = ""
-authors = ["Mihails Delmans <mihails.delmans@colorifix.com>"]
+authors = [
+    "Mihails Delmans <mihails.delmans@colorifix.com>",
+    "Michael Hall <michael.hall@colorifix.com>"
+]
 readme = "README.md"
 
 [tool.poetry.dependencies]

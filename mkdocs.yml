@@ -1,10 +1,10 @@
 site_name: Constelite
-repo_url: https://gitlab.com/colorifix/constelite/constelite
+repo_url: https://github.com/Colorifix/constelite
 repo_name: Colorifix/constelite
 theme:
   name: material
   icon:
-    repo: fontawesome/brands/gitlab
+    repo: fontawesome/brands/github-alt
   logo: img/logo.png
   favicon: img/logo.png
   features:

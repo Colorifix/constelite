@@ -1,3 +1,5 @@
+[![docs](https://img.shields.io/badge/docs-blue)](https://colorifix.github.io/constelite/) ![PyPI - Version](https://img.shields.io/pypi/v/constelite)
+
 # Welcome to Constelite
 
 <img src="./docs/img/logo.png" alt="Logo" width="100"/>
