@@ -33,6 +33,7 @@ jobs:
         run: |
           git config --global user.name "bot"
           git config --global user.email "bot@colorifix.com"
+          git fetch origin
           git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
           git push origin develop -f
 
