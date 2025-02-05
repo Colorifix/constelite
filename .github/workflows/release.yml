@@ -25,6 +25,14 @@ jobs:
       (github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.head.ref, 'release/'))
     steps:
+    
+    - name: Get Gitflow App token
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ secrets.GITFLOW_APP_ID  }}
+        private-key: ${{ secrets.GITFLOW_APP_KEY }}
+
     - name: Gitflow action
       id: gitflow-action
       uses: hoangvvo/gitflow-workflow-action@0.3.7
@@ -35,7 +43,7 @@ jobs:
         version_increment: ${{ contains(github.head_ref, 'hotfix/') && 'patch' || ''   }}
         dry_run: ${{ inputs.dry_run }}
       env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
     
     - name: Checkout code
       uses: actions/checkout@v4
