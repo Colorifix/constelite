@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge Source Branch into Develop
         run: |
@@ -28,14 +30,10 @@ jobs:
           git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
           git push origin develop
 
-      - name: Build docs
-        if: startsWith(github.event.pull_request.head.ref, 'docs/')
-        run: foo
-
   publish-docs:
     name: Publish Documentation
     runs-on: ubuntu-latest
-    if: startsWith(github.event.pull_request.head.ref, 'docs/')
+    if: startsWith(github.event.pull_request.head.ref, 'docs/') || startsWith(github.event.pull_request.head.ref, 'release/')
     permissions:
       id-token: write
       pages: write
@@ -66,3 +64,6 @@ jobs:
 
       - name: Deploy pages
         uses: actions/deploy-pages@v4
+
+permissions:
+  contents: write
