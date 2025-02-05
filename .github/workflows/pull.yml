@@ -1,0 +1,62 @@
+name: Pull workflow
+
+on:
+  pull_request:
+    branches:
+      - 'develop'
+
+jobs:
+  run-tests:
+    if: true
+    runs-on: ubuntu-latest
+
+    steps:      
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+    
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 'latest'
+
+      - name: Setup local venv
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+          poetry run python --version
+      
+      - name: Restore dependencies
+        id: restore-dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.restore-dependencies.outputs.cache-hit != 'true'
+        run: poetry install -vvv
+      
+      - name: Cache dependencies
+        uses: actions/cache/save@v4
+        with:
+          path: ./.venv
+          key: ${{ steps.restore-dependencies.outputs.cache-primary-key }}
+
+      - name: Install project
+        run: poetry install --only-root
+
+      - name: Run tests
+        run: poetry run pytest --junitxml=junit/test-results.xml
+      
+      - name: Publish test report
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: 'junit/test-results.xml'

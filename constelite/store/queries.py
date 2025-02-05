@@ -6,11 +6,6 @@ from typing import Dict, Any
 
 
 class Query(BaseModel):
-    # include_static: Optional[bool] = True
-    # include_dynamic: Optional[bool] = True
-    # include_associations: Optional[bool] = False
-    # include_compositions: Optional[bool] = True
-    # include_aggregations: Optional[bool] = True
     pass
 
 class RefQuery(Query):

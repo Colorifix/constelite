@@ -16,7 +16,6 @@ class Relationship(GenericModel, Generic[M]):
     model_type: M
 
     @classmethod
-    @property
     def model(cls):
         return cls.__fields__['model_type'].type_
 

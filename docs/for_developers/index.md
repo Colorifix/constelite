@@ -1,7 +1,13 @@
 # Developer guide
 
 
-Here are some guides to developing Constelite:
+Here are some guides to developing constelite:
+
+[Adding new store](new_store.md)
+:   Extend constelite with a new store
+
+[Adding new API](new_api.md)
+:   Extend constelite with a new API
 
 [GraphQL](graphql.md)
 
@@ -13,4 +19,4 @@ Here are some guides to developing Constelite:
 
 [Error Logging](error_logging.md)
 
-:   Error logging in Constelite
+:   Error logging in constelite

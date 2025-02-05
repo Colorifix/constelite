@@ -18,14 +18,14 @@ class TimePoint(GenericModel, Generic[V]):
     value: V
 
     @classmethod
-    @property
-    def _point_type(cls) -> Type:
+    def _get_point_type(cls) -> Type:
         return cls.__fields__['value'].type_
 
     @validator('value')
     def convert_value(cls, v):
-        if isinstance(v, dict) and cls._point_type != dict:
-            return cls._point_type(**v)
+        if isinstance(v, dict) and cls._get_point_type() != dict:
+            point_type = cls._get_point_type()
+            return point_type(**v)
         return v
 
 
@@ -36,9 +36,8 @@ class Dynamic(GenericModel, Generic[V]):
         return len(self.points)
 
     @classmethod
-    @property
-    def _point_type(cls) -> Type:
-        return cls.__fields__['points'].type_._point_type
+    def _get_point_type(cls) -> Type:
+        return cls.__fields__['points'].type_._get_point_type()
 
     def to_series(self):
         times = [
@@ -55,9 +54,10 @@ class Dynamic(GenericModel, Generic[V]):
 
     @classmethod
     def from_series(cls, series: pd.Series):
-        if issubclass(cls._point_type, Tensor):
-            tensor_schema_cls = cls._point_type.schema_cls
-            tensor_schema = cls._point_type.pa_schema
+        point_type = cls._get_point_type()
+        if issubclass(point_type, Tensor):
+            tensor_schema_cls = point_type.schema_cls
+            tensor_schema = point_type.pa_schema
 
             value_type = None
             schema_indexes = []

@@ -42,7 +42,7 @@ def type_class(model: Union[Type[StateModel], ForwardRef]) -> Type[StateModel]:
 
 class RelInspector(BaseModel):
     from_field_name: str
-    to_field_name: Optional[str] = ...
+    to_field_name: Optional[str] = None
     to_refs: Optional[List[Ref]]
     rel_type: Literal['Association', 'Composition', 'Aggregation']
     to_model: Type[StateModel]
@@ -58,7 +58,7 @@ class RelInspector(BaseModel):
             to_refs = []
 
         rel_type = field.type_
-        rel_to_model = rel_type.model
+        rel_to_model = rel_type.model()
         if isinstance(rel_to_model, ForwardRef):
             rel_to_model = resolve_forward_ref(rel_to_model, StateModel)
             if rel_to_model is None:
@@ -72,10 +72,10 @@ class RelInspector(BaseModel):
                     isinstance(f.type_, type) and
                     issubclass(f.type_, Backref)
                     and (
-                        (type_name(f.type_.model)
+                        (type_name(f.type_.model())
                          == type_name(from_model_type)) or
                         issubclass(type_class(from_model_type),
-                                   type_class(f.type_.model))
+                                   type_class(f.type_.model()))
                     )
                     and (
                         f.field_info.extra.get('from_field', None)
@@ -101,7 +101,7 @@ class RelInspector(BaseModel):
             to_refs = []
 
         rel_type = field.type_
-        rel_to_model = rel_type.model
+        rel_to_model = rel_type.model()
         if isinstance(rel_to_model, ForwardRef):
             rel_to_model = resolve_forward_ref(rel_to_model, StateModel)
             if rel_to_model is None:

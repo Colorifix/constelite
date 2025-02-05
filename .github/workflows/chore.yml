@@ -1,0 +1,68 @@
+name: Chore & Docs Workflow
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  merge-to-develop:
+    name: Merge to develop
+    if: >
+      (startsWith(github.event.pull_request.head.ref, 'chore/') ||
+       startsWith(github.event.pull_request.head.ref, 'docs/'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Merge Source Branch into Develop
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@colorifix.com"
+          git fetch
+          git checkout develop
+          git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
+          git push origin develop
+
+      - name: Build docs
+        if: startsWith(github.event.pull_request.head.ref, 'docs/')
+        run: foo
+
+  publish-docs:
+    name: Publish Documentation
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.head.ref, 'docs/')
+    permissions:
+      id-token: write
+      pages: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: 'latest'
+
+      - name: Install dev dependencies
+        run: poetry install --only dev --no-root
+
+      - name: Build docs
+        run: poetry run mkdocs build
+
+      - name: Upload docs as artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+            path: site
+
+      - name: Deploy pages
+        uses: actions/deploy-pages@v4

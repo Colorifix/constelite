@@ -135,7 +135,7 @@ class AsyncBaseStore(StoreModel):
 
     async def create_model(
             self,
-            model_type: StateModel,
+            model_type: Type[StateModel],
             static_props: Dict[str, StaticTypes],
             dynamic_props: Dict[str, Optional[Dynamic]]) -> UID:
         raise NotImplementedError

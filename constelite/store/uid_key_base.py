@@ -77,17 +77,18 @@ class UIDKeyStoreBase(AsyncBaseStore):
         )
 
         for prop_name, prop in props.items():
+            point_type = prop._get_point_type()
             points = getattr(
                 model,
                 prop_name,
-                Dynamic[prop._point_type](points=[])
+                Dynamic[point_type](points=[])
             ).points
 
             points.extend(prop.points)
             setattr(
                 model,
                 prop_name,
-                Dynamic[prop._point_type](points=points)
+                Dynamic[point_type](points=points)
             )
         await self.store(uid=uid, model=model)
 
