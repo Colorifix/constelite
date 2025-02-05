@@ -28,7 +28,7 @@ jobs:
           git fetch
           git checkout develop
           git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
-          git push origin develop
+          git push origin develop -f
 
   publish-docs:
     name: Publish Documentation

@@ -35,7 +35,7 @@ plugins:
   - mkdocstrings
   - autorefs
 
-site_dir: public
+site_dir: site
 
 nav:
   - Welcome:
