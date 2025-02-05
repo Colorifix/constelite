@@ -27,13 +27,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ steps.app-token.outputs.token }}
-          ref: develop
 
       - name: Merge Source Branch into Develop
         run: |
           git config --global user.name "bot"
           git config --global user.email "bot@colorifix.com"
           git fetch origin
+          git switch develop
           git merge --no-ff origin/${{ github.event.pull_request.head.ref }} -m "Merge ${{ github.event.pull_request.head.ref }} into develop"
           git push origin develop
 
